@@ -1,5 +1,10 @@
 <template>
   <div class="chat-view">
+    <video class="background-video" autoplay muted loop playsinline>
+      <source src="@/asserts/video/chat.mp4" type="video/mp4">
+    </video>
+    
+    <div class="chat-content">
     <div class="chat-header">
       <div class="header-left">
         <h1 class="app-title">八重樱</h1>
@@ -33,6 +38,7 @@
           @send="handleSendMessage"
         />
       </div>
+    </div>
     </div>
   </div>
 </template>
@@ -188,7 +194,26 @@ const toggleTheme = () => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--el-bg-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.background-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+}
+
+.chat-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  // background-color: rgba(255, 255, 255, 0.95);
+  // backdrop-filter: blur(15px);
 }
 
 .chat-header {
@@ -196,8 +221,8 @@ const toggleTheme = () => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  background-color: var(--el-bg-color);
+  // border-bottom: 1px solid var(--el-border-color-lighter);
+  // background-color: var(--el-bg-color);
 }
 
 .header-left {
@@ -205,7 +230,7 @@ const toggleTheme = () => {
     margin: 0;
     font-size: 20px;
     font-weight: 600;
-    color: var(--el-text-color-primary);
+    color: #f3648c;
   }
 }
 
@@ -220,6 +245,7 @@ const toggleTheme = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  align-items: center;
 }
 
 .messages-container {
@@ -227,6 +253,7 @@ const toggleTheme = () => {
   overflow-y: auto;
   padding: 16px 24px;
   scroll-behavior: smooth;
+  width: 1200px;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -267,13 +294,13 @@ const toggleTheme = () => {
 }
 
 .input-container {
-  border-top: 1px solid var(--el-border-color-lighter);
-  background-color: var(--el-bg-color);
+  // background-color: var(--el-bg-color);
+  width: 1200px;
 }
 
 .dark-theme {
-  .chat-view {
-    background-color: var(--el-bg-color-overlay);
+  .chat-content {
+    background-color: rgba(0, 0, 0, 0.7);
   }
 
   .chat-header,

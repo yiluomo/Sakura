@@ -1,8 +1,8 @@
 <template>
   <div class="chat-message" :class="`message-${message.role}`">
     <div class="message-avatar">
-      <el-avatar v-if="message.role === 'user'" :size="40" :icon="User" />
-      <el-avatar v-else :size="40" :src="sakuraAvatar" />
+      <!-- <el-avatar v-if="message.role === 'user'" :size="40" :icon="User" /> -->
+      <el-avatar v-if="message.role !== 'user'"  :src="sakuraAvatar" />
     </div>
     
     <div class="message-content">
@@ -108,10 +108,6 @@ const copyMessage = async () => {
   margin-bottom: 8px;
   transition: all 0.2s ease;
 
-  &:hover {
-    background-color: var(--el-bg-color-page);
-  }
-
   &.message-user {
     flex-direction: row-reverse;
 
@@ -130,12 +126,15 @@ const copyMessage = async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: 70%;
+  width: auto;
+  min-width: 0; /* 防止flex子元素溢出 */
+  align-items: flex-start; /* 确保内容左对齐 */
 }
 
 .message-header {
   display: flex;
-  justify-content: space-between;
+  // justify-content: space-between;
+  gap: 4px;
   align-items: center;
   font-size: 12px;
   color: var(--el-text-color-secondary);

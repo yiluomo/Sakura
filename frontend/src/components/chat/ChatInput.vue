@@ -6,7 +6,7 @@
         type="textarea"
         :rows="1"
         :autosize="{ minRows: 1, maxRows: 4 }"
-        placeholder="输入消息... (Ctrl+Enter 发送)"
+        placeholder="输入消息... (Enter 发送)"
         :disabled="isLoading"
         @keydown="handleKeyDown"
         @input="handleInput"
@@ -28,7 +28,7 @@
     
     <div class="input-footer">
       <div class="input-tips">
-        <span>按 Ctrl+Enter 快速发送</span>
+        <span>按Enter 快速发送</span>
       </div>
       <div class="input-stats">
         <span>{{ inputMessage.length }}/2000</span>
@@ -62,7 +62,7 @@ const inputMessage = ref('')
 const isOverLimit = computed(() => inputMessage.value.length > props.maxLength)
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter' && event.ctrlKey) {
+  if (event.key === 'Enter') {
     event.preventDefault()
     attemptSend()
   } else if (event.key === 'Enter' && !event.shiftKey) {
@@ -99,9 +99,10 @@ watch(() => props.isLoading, (newVal) => {
 
 <style lang="scss" scoped>
 .chat-input {
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-radius: 15px;
+  // border: 1px solid var(--el-border-color-lighter);
   padding: 16px;
-  background-color: var(--el-bg-color);
+  // background-color: var(--el-bg-color);
 }
 
 .input-container {
@@ -115,9 +116,9 @@ watch(() => props.isLoading, (newVal) => {
 
   .el-textarea__inner {
     border-radius: 8px;
-    border: 1px solid var(--el-border-color);
+    border: 1px solid white;
     transition: all 0.2s ease;
-
+    background-color: transparent;
     &:focus {
       border-color: var(--el-color-primary);
       box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.1);
