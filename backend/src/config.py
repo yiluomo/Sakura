@@ -16,11 +16,11 @@ DATA_DIR.mkdir(exist_ok=True)  # 确保 data 文件夹存在
 # 格式: mysql+aiomysql://用户名:密码@主机:端口/数据库名
 
 #我的电脑
-# DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
+DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
 #公司电脑
-job_computer_psw = "asdag!331@dAaf"
-encode_psw = quote_plus(job_computer_psw)
-DATABASE_URL = (f"mysql+aiomysql://root:{encode_psw}@localhost:3306/sakura_db")
+# job_computer_psw = "asdag!331@dAaf"
+# encode_psw = quote_plus(job_computer_psw)
+# DATABASE_URL = (f"mysql+aiomysql://root:{encode_psw}@localhost:3306/sakura_db")
 
 # LLM API 配置（用于对话总结）
 LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API密钥

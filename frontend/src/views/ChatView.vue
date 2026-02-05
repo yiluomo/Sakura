@@ -213,11 +213,13 @@ const toggleTheme = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   // background-color: rgba(255, 255, 255, 0.95);
   // backdrop-filter: blur(15px);
 }
 
 .chat-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -245,8 +247,8 @@ const toggleTheme = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   align-items: center;
+  min-height: 0;
 }
 
 .messages-container {
@@ -254,24 +256,18 @@ const toggleTheme = () => {
   overflow-y: auto;
   padding: 16px 24px;
   scroll-behavior: smooth;
-  width: 1200px;
+  width: 100%;
+  max-width: 1200px;
 
   &::-webkit-scrollbar {
-    width: 6px;
+    display: none;
   }
-
-  &::-webkit-scrollbar-track {
-    background: var(--el-bg-color-page);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--el-border-color-darker);
-    border-radius: 3px;
-
-    &:hover {
-      background: var(--el-border-color-dark);
-    }
-  }
+  
+  /* Firefox */
+  scrollbar-width: none;
+  
+  /* IE and Edge */
+  -ms-overflow-style: none;
 }
 
 .empty-state {
@@ -295,8 +291,12 @@ const toggleTheme = () => {
 }
 
 .input-container {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 1200px;
+  padding: 16px 24px;
+  box-sizing: border-box;
   // background-color: var(--el-bg-color);
-  width: 1200px;
 }
 
 .dark-theme {
