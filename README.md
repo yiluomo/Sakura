@@ -56,6 +56,7 @@ Core 层 (人格 / 决策 / 调度)     ← 她的意识中枢
 - [x] 人格系统 (八重樱)
 - [x] 短期记忆 (数据库持久化)
 - [x] 长期记忆 (数据库持久化)
+- [x] 短期记忆自动压缩 (LLM 总结)
 - [x] LLM 适配器 (DeepSeek / Ollama)
 - [x] 用户状态追踪
 - [x] Web 前端界面 (Vue 3 + Element Plus)
@@ -101,7 +102,23 @@ mysql -u root -p -e "CREATE DATABASE sakura_db CHARACTER SET utf8mb4 COLLATE utf
 - 端口: 3306
 - 数据库名: sakura_db
 
-#### 2. 安装Python环境
+#### 3. 配置 LLM API
+
+编辑 `backend/src/config.py`，配置你的 LLM API 密钥：
+
+```python
+# LLM API 配置（用于对话生成和记忆总结）
+LLM_API_KEY = "your-api-key-here"  # 替换为实际的 API 密钥
+LLM_API_BASE = "https://api.deepseek.com/v1"  # API 地址
+LLM_MODEL = "deepseek-chat"  # 模型名称
+
+# 短期记忆压缩配置（可选调整）
+MEMORY_COMPRESSION_THRESHOLD = 200  # 触发压缩的对话数量阈值
+MEMORY_COMPRESSION_BATCH_SIZE = 150  # 每次压缩的对话数量
+MEMORY_KEEP_RECENT_COUNT = 50  # 压缩后保留的最近对话数量
+```
+
+#### 4. 安装Python环境
 
 ```bash
 # 创建环境
@@ -220,9 +237,27 @@ curl -X POST "http://localhost:8000/api/chat" \
 
 - **短期记忆**: 最近对话上下文（数据库持久化）
 - **长期记忆**: 用户信息、偏好、重要事件（分类存储）
+- **智能压缩**: 当对话数量达到阈值时，自动使用 LLM 总结旧对话并保存到长期记忆，减少 token 压力
 - **用户状态**: 亲密度、情绪、互动统计
 - **主动回忆**: 根据当前对话检索相关记忆
 - **记忆去重**: 避免重复存储相同信息
+
+#### 记忆压缩机制
+
+为了控制 token 使用量，系统实现了智能的短期记忆压缩功能：
+
+1. **自动触发**: 当用户的对话数量超过阈值（默认 200 条）时自动触发
+2. **LLM 总结**: 使用大模型对最旧的对话（默认 150 条）进行智能总结，提取关键信息
+3. **保存归档**: 将总结保存到长期记忆表，类型为 `conversation_summary`
+4. **清理旧数据**: 删除已压缩的对话，保留最近的对话（默认 50 条）
+5. **无缝集成**: 整个过程自动完成，不影响用户体验
+
+压缩后提取的信息包括：
+- 用户的个人信息（姓名、年龄、职业、居住地等）
+- 用户的偏好、兴趣和爱好
+- 用户讨厌或不喜欢的事物
+- 重要的事件、经历或计划
+- 需要记住的特定事实或约定
 
 ### 🔌 模型适配
 

@@ -206,6 +206,7 @@ const toggleTheme = () => {
   height: 100%;
   object-fit: cover;
   z-index: -1;
+  filter: brightness(0.96);
 }
 
 .chat-content {

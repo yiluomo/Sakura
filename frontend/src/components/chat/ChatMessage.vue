@@ -145,10 +145,13 @@ const copyMessage = async () => {
 }
 
 .message-body {
-  background-color: var(--el-bg-color);
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: 8px;
   padding: 12px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .message-text {
@@ -209,8 +212,11 @@ const copyMessage = async () => {
 
 .dark-theme {
   .message-body {
-    background-color: var(--el-bg-color-overlay);
-    border-color: var(--el-border-color);
+    background-color: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
   }
 }
 </style>

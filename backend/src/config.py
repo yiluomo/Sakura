@@ -21,3 +21,13 @@ DATA_DIR.mkdir(exist_ok=True)  # 确保 data 文件夹存在
 job_computer_psw = "asdag!331@dAaf"
 encode_psw = quote_plus(job_computer_psw)
 DATABASE_URL = (f"mysql+aiomysql://root:{encode_psw}@localhost:3306/sakura_db")
+
+# LLM API 配置（用于对话总结）
+LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API密钥
+LLM_API_BASE = "https://api.deepseek.com/v1"  # 或其他兼容的API地址
+LLM_MODEL = "deepseek-chat"  # 用于总结的模型
+
+# 短期记忆压缩配置
+MEMORY_COMPRESSION_THRESHOLD = 200  # 触发压缩的对话数量阈值
+MEMORY_COMPRESSION_BATCH_SIZE = 150  # 每次压缩的对话数量
+MEMORY_KEEP_RECENT_COUNT = 50  # 压缩后保留的最近对话数量

@@ -118,3 +118,51 @@ async def check_memory_exists(
     )
     return result.scalar_one_or_none()
 
+# ========== 对话压缩相关 ==========
+
+async def count_conversations(
+    db: AsyncSession,
+    user_id: str
+) -> int:
+    """统计用户的对话总数"""
+    from sqlalchemy import func
+    result = await db.execute(
+        select(func.count(Conversation.id))
+        .where(Conversation.user_id == user_id)
+    )
+    return result.scalar() or 0
+
+async def get_oldest_conversations(
+    db: AsyncSession,
+    user_id: str,
+    limit: int = 10
+):
+    """获取最旧的N条对话（按时间从旧到新排序）"""
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.user_id == user_id)
+        .order_by(Conversation.timestamp.asc(), Conversation.id.asc())
+        .limit(limit)
+    )
+    conversations = result.scalars().all()
+    return [
+        {
+            "id": c.id,
+            "role": c.role,
+            "content": c.content,
+            "timestamp": c.timestamp.isoformat()
+        }
+        for c in conversations
+    ]
+
+async def delete_conversations_by_ids(
+    db: AsyncSession,
+    conversation_ids: list
+):
+    """删除指定ID的对话记录"""
+    from sqlalchemy import delete as sql_delete
+    await db.execute(
+        sql_delete(Conversation)
+        .where(Conversation.id.in_(conversation_ids))
+    )
+    await db.commit()
