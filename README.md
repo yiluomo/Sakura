@@ -9,6 +9,7 @@
 - [项目结构文档](docs/sakura/project.md) - 详细的模块和文件说明
 - [开发文档](docs/sakura/开发文档.md) - 开发指南和设计原则
 - [Sakura 人格设定](docs/sakura/sakura.md) - 八重樱的人格和背景
+- [长期记忆使用说明](docs/sakura/长期记忆使用说明.md) - 记忆功能详细说明
 
 ## 愿景
 
@@ -34,7 +35,7 @@ Core 层 (人格 / 决策 / 调度)     ← 她的意识中枢
 子系统层
   ├─ LLM (大脑适配器)           ← 思考能力
   ├─ Memory (记忆系统)          ← 她的过去与现在
-  └─ DB (持久化)                ← 存在的证明
+  └─ DB (持久化 + 文件)         ← 存在的证明
 ```
 
 ### 设计原则
@@ -52,21 +53,25 @@ Core 层 (人格 / 决策 / 调度)     ← 她的意识中枢
 - [x] API 层基础接口
 - [x] Core 层对话调度
 
-### 🚧 Phase 1: 对话系统
+### ✅ Phase 1: 对话系统
 - [x] 人格系统 (八重樱)
-- [x] 短期记忆 (数据库持久化)
-- [x] 长期记忆 (数据库持久化)
-- [x] 短期记忆自动压缩 (LLM 总结)
-- [x] LLM 适配器 (DeepSeek / Ollama)
+- [x] 短期记忆（MySQL 持久化）
+- [x] 长期记忆（数据库索引 + Markdown 文件双轨存储）
+- [x] LLM 自动提取记忆关键词（5~10个）
+- [x] 短期记忆自动压缩归档（LLM 总结 → `summaries.md`）
+- [x] LLM 适配器（DeepSeek / Ollama）
 - [x] 用户状态追踪
-- [x] Web 前端界面 (Vue 3 + Element Plus)
-- [ ] 情绪状态系统完善
-- [ ] 记忆检索优化
+- [x] Web 前端界面（Vue 3 + Element Plus）
+- [x] 配置文件环境变量支持
+- [x] Docker 容器化部署
 
-### 📋 Phase 2: 记忆系统
-- [ ] 关系亲密度
-- [ ] 主动回忆机制
-- [ ] 重要事件提取
+### 🚧 Phase 2: 记忆系统
+- [x] 长期记忆文件化（`memory_store/*.md`，人类可读）
+- [x] 关键词驱动的记忆检索
+- [ ] 情绪状态系统完善
+- [ ] 关系亲密度计算
+- [ ] 主动回忆触发机制
+- [ ] 记忆向量化检索
 
 ### 🎨 Phase 3: 表现层
 - [x] Web 前端
@@ -82,145 +87,146 @@ Core 层 (人格 / 决策 / 调度)     ← 她的意识中枢
 
 ## 快速开始
 
-### 环境要求
+### 方式一：Docker（推荐）
 
-- Python 3.9+
-- Conda (推荐) 或 pip
-- MySQL 5.7+ (数据库)
-
-### 安装
-
-#### 1. 配置MySQL数据库
+无需手动安装 Python 环境或 MySQL，一条命令启动全部服务。
 
 ```bash
-# 创建数据库
+# 克隆项目
+git clone <repo_url>
+cd Sakura
+
+# 一键启动（首次运行会自动构建镜像、建库建表）
+docker compose up -d --build
+
+# 查看启动日志
+docker compose logs -f backend
+```
+
+启动后访问：
+- 前端：`http://localhost`
+- 后端 API 文档：`http://localhost:8000/docs`
+
+> 数据持久化在 Docker Volume 中，`docker compose down` 不会丢失数据。
+
+---
+
+### 方式二：本地运行
+
+#### 环境要求
+
+- Python 3.9+（推荐 Conda）
+- Node.js 18+
+- MySQL 5.7+
+
+#### 1. 配置 MySQL 数据库
+
+```bash
 mysql -u root -p -e "CREATE DATABASE sakura_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
-数据库配置信息（可在 `backend/src/config.py` 中修改）：
-- 主机: localhost
-- 端口: 3306
-- 数据库名: sakura_db
+#### 2. 配置 `backend/src/config.py`
 
-#### 3. 配置 LLM API
-
-编辑 `backend/src/config.py`，配置你的 LLM API 密钥：
+激活当前机器对应的数据库连接，并填入 LLM API 密钥：
 
 ```python
-# LLM API 配置（用于对话生成和记忆总结）
-LLM_API_KEY = "your-api-key-here"  # 替换为实际的 API 密钥
-LLM_API_BASE = "https://api.deepseek.com/v1"  # API 地址
-LLM_MODEL = "deepseek-chat"  # 模型名称
+# 数据库（取消注释对应环境的那一行）
+DATABASE_URL = "mysql+aiomysql://root:your_password@localhost:3306/sakura_db"
 
-# 短期记忆压缩配置（可选调整）
-MEMORY_COMPRESSION_THRESHOLD = 200  # 触发压缩的对话数量阈值
-MEMORY_COMPRESSION_BATCH_SIZE = 150  # 每次压缩的对话数量
-MEMORY_KEEP_RECENT_COUNT = 50  # 压缩后保留的最近对话数量
+# LLM API（DeepSeek 或其他兼容接口）
+LLM_API_KEY = "your-api-key-here"
 ```
 
-#### 4. 安装Python环境
+#### 3. 安装后端依赖
 
 ```bash
-# 创建环境
+# Conda 方式
 conda env create -f backend/environment.yml
 conda activate Sakura
+pip install aiofiles  # 补装文件异步 IO 库
 
-# 或更新现有环境
-conda env update -f backend/environment.yml --prune
+# 或直接 pip
+pip install -r backend/requirements.txt
 ```
 
-数据库表会在首次运行时自动创建。
-
-### 运行项目
-
-#### 方式一：一键启动 (推荐)
-
-直接运行根目录下的 `run.bat` 脚本即可同时启动前后端。
+#### 4. 初始化数据库表结构
 
 ```bash
-.\run.bat
+cd backend/src
+python migrate_db.py
 ```
 
-#### 方式二：手动启动
+#### 5. 启动服务
 
 **后端**
 ```bash
-cd backend\src
-# 激活环境
+cd backend/src
 conda activate Sakura
-# 启动服务
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **前端**
 ```bash
 cd frontend
-npm install  # 初次运行需要安装依赖
+npm install
 npm run dev
 ```
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-# 在另一个终端运行测试
-cd backend
-python test\test_chat.py
-```
-
-### 测试对话
-
-访问 `http://localhost:8000/docs` 使用 Swagger UI 测试
-
-或使用 curl：
-
-```bash
-curl -X POST "http://localhost:8000/api/chat" \
-  -H "Content-Type: application/json" \
-  -d "{\"user_id\":\"依洛沐\",\"message\":\"你好，八重樱\"}"
-```
+访问 `http://localhost:3000` 开始对话。
 
 ---
 
 ## 项目结构
 
-详细的项目结构请查看 [项目结构文档](docs/sakura/project.md)
+详细说明请查看 [项目结构文档](docs/sakura/project.md)
 
 ```
-樱/
-├── backend/           # 后端服务 (FastAPI + MySQL)
+Sakura/
+├── backend/                 # 后端服务 (FastAPI + MySQL)
 │   ├── src/
-│   │   ├── api/       # API 层 - 世界入口
-│   │   ├── core/      # Core 层 - 意识中枢
-│   │   ├── llm/       # LLM 层 - 大脑适配器
-│   │   ├── memory/    # Memory 层 - 记忆系统
-│   │   ├── db/        # DB 层 - 持久化
-│   │   └── main.py    # 应用入口
-│   └── test/          # 测试脚本
-├── frontend/          # 前端界面 (Vue 3 + Element Plus)
+│   │   ├── api/             # API 层 - 世界入口
+│   │   ├── core/            # Core 层 - 意识中枢
+│   │   ├── llm/             # LLM 层 - 大脑适配器
+│   │   ├── memory/          # Memory 层 - 记忆系统
+│   │   │   ├── short_term.py      # 短期记忆
+│   │   │   ├── long_term.py       # 长期记忆
+│   │   │   ├── keyword_extractor.py  # LLM 关键词提取
+│   │   │   └── file_store.py      # 记忆文件读写
+│   │   ├── db/              # DB 层 - 数据库持久化
+│   │   ├── config.py        # 配置（支持环境变量）
+│   │   ├── main.py          # 应用入口
+│   │   └── migrate_db.py    # 数据库迁移脚本
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   └── requirements.txt
+├── frontend/                # 前端界面 (Vue 3 + Element Plus)
 │   ├── src/
-│   │   ├── api/       # API 接口
-│   │   ├── components/# Vue 组件
-│   │   ├── stores/    # 状态管理
-│   │   └── views/     # 页面视图
-│   └── package.json
-├── docs/              # 项目文档
-│   ├── sakura/        # 核心文档
-│   └── write/         # 开发日志
-└── README.md          # 本文件
+│   ├── Dockerfile
+│   └── nginx.docker.conf
+├── memory_store/            # 长期记忆文件（运行时自动创建）
+│   ├── profile.md           # 个人档案
+│   ├── preferences.md       # 偏好与经历
+│   ├── notes.md             # 手动笔记
+│   └── summaries.md         # 对话压缩摘要
+├── docs/                    # 项目文档
+├── docker-compose.yml       # 容器编排
+└── README.md
 ```
 
 ---
 
 ## 技术栈
 
-- **后端框架**: FastAPI
-- **数据库**: MySQL + SQLAlchemy (异步)
-- **大模型**: DeepSeek API / Ollama (可切换)
-- **HTTP 客户端**: httpx (异步)
-- **前端**: Vue 3 + Element Plus
-- **未来计划**: 
-  - 3D: Unity
-  - 2D: Live2D
-  - 语音: VITS / Azure TTS
-  - 向量检索: FAISS / Milvus
+| 层 | 技术 |
+|----|------|
+| 后端框架 | FastAPI + Uvicorn |
+| 数据库 | MySQL + SQLAlchemy (异步) |
+| 大模型 | DeepSeek API / Ollama (可切换) |
+| 文件 IO | aiofiles (异步) |
+| 前端 | Vue 3 + Element Plus + Pinia |
+| 容器化 | Docker + docker-compose |
+| 反向代理 | Nginx |
+| 未来计划 | Live2D / Unity · VITS / Azure TTS · FAISS / Milvus |
 
 ---
 
@@ -235,39 +241,37 @@ curl -X POST "http://localhost:8000/api/chat" \
 
 ### 🧠 记忆系统
 
-- **短期记忆**: 最近对话上下文（数据库持久化）
-- **长期记忆**: 用户信息、偏好、重要事件（分类存储）
-- **智能压缩**: 当对话数量达到阈值时，自动使用 LLM 总结旧对话并保存到长期记忆，减少 token 压力
-- **用户状态**: 亲密度、情绪、互动统计
-- **主动回忆**: 根据当前对话检索相关记忆
-- **记忆去重**: 避免重复存储相同信息
+#### 双轨长期记忆
 
-#### 记忆压缩机制
+长期记忆采用**数据库索引 + Markdown 文件**双轨并行设计：
 
-为了控制 token 使用量，系统实现了智能的短期记忆压缩功能：
+| 存储位置 | 内容 | 用途 |
+|---------|------|------|
+| `long_term_memory` 表 | 轻量索引（类型、关键词、文件路径） | 快速查找、去重 |
+| `memory_store/*.md` | 完整记忆内容（Markdown） | 注入 prompt、人工查看/编辑 |
 
-1. **自动触发**: 当用户的对话数量超过阈值（默认 200 条）时自动触发
-2. **LLM 总结**: 使用大模型对最旧的对话（默认 150 条）进行智能总结，提取关键信息
-3. **保存归档**: 将总结保存到长期记忆表，类型为 `conversation_summary`
-4. **清理旧数据**: 删除已压缩的对话，保留最近的对话（默认 50 条）
-5. **无缝集成**: 整个过程自动完成，不影响用户体验
+- **短期记忆**：最近对话上下文，存储在 MySQL 数据库
+- **长期记忆**：用户档案、偏好、经历，按语义分类存入 `.md` 文件
+- **LLM 关键词提取**：保存记忆时自动提取 5~10 个检索关键词
+- **记忆去重**：按 `memory_type + key` 唯一定位，避免重复存储
 
-压缩后提取的信息包括：
-- 用户的个人信息（姓名、年龄、职业、居住地等）
-- 用户的偏好、兴趣和爱好
-- 用户讨厌或不喜欢的事物
-- 重要的事件、经历或计划
-- 需要记住的特定事实或约定
+#### 智能压缩机制
+
+当对话数量超过阈值（默认 200 条）时自动触发：
+
+1. 取出最旧的 150 条对话
+2. LLM 总结关键信息并提取关键词
+3. 摘要写入 `memory_store/summaries.md`，数据库同步建索引
+4. 删除已归档的原始对话记录
+
+提取内容包括：用户个人信息、偏好兴趣、厌恶事物、重要事件与约定。
 
 ### 🔌 模型适配
 
-支持多种大模型后端：
-- DeepSeek API (当前使用)
-- Ollama (本地)
-- OpenAI API (兼容)
-- 其他兼容 API
-
-模型可以随时切换，人格保持不变。
+支持多种大模型后端，可以随时切换，人格保持不变：
+- DeepSeek API（当前默认）
+- Ollama（本地）
+- 任意 OpenAI 兼容接口
 
 ---
 
@@ -286,7 +290,7 @@ curl -X POST "http://localhost:8000/api/chat" \
 | Core | 决策、人格、流程控制 | HTTP、数据库细节 |
 | LLM  | 调模型 | 决定"说什么" |
 | Memory | 存和取记忆 | 生成回复 |
-| DB   | 存储 | 逻辑判断 |
+| DB / File | 存储 | 逻辑判断 |
 
 ### 自检清单
 
@@ -297,6 +301,7 @@ curl -X POST "http://localhost:8000/api/chat" \
 
 如果四条都成立：**你的系统已经具备"生命结构"了**。
 
+---
 
 ## 致谢
 

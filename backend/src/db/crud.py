@@ -2,6 +2,8 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.models import Conversation, LongTermMemory, UserState
 from datetime import datetime
+from typing import Optional, List
+
 
 # ========== 对话历史 ==========
 
@@ -22,7 +24,6 @@ async def get_recent_conversations(
     limit: int = 10
 ):
     """获取最近的对话（按时间从旧到新排序）"""
-    # 先降序获取最近的N条记录（按timestamp和id排序）
     result = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == user_id)
@@ -30,45 +31,119 @@ async def get_recent_conversations(
         .limit(limit)
     )
     conversations = result.scalars().all()
-    # 反转顺序，使其从旧到新
     return [
         {"role": c.role, "content": c.content, "timestamp": c.timestamp.isoformat()}
         for c in reversed(conversations)
     ]
 
-# ========== 长期记忆 ==========
+
+# ========== 长期记忆索引 ==========
 
 async def save_long_term_memory(
     db: AsyncSession,
-    user_id: str,
     memory_type: str,
     key: str,
     value: str,
+    keywords: str = "",
+    file_path: str = "",
     importance: int = 1
 ):
-    """保存长期记忆"""
+    """
+    写入长期记忆索引记录。
+    value 存储内容摘要（前100字），便于快速预览，无需读文件。
+    keywords 为逗号分隔的关键词字符串。
+    file_path 为对应 .md 文件的相对路径。
+    """
     memory = LongTermMemory(
-        user_id=user_id,
         memory_type=memory_type,
         key=key,
-        value=value,
-        importance=importance
+        value=value[:100] if value else "",   # 仅存前100字作摘要
+        keywords=keywords,
+        file_path=file_path,
+        importance=importance,
     )
     db.add(memory)
     await db.commit()
 
+async def update_long_term_memory(
+    db: AsyncSession,
+    memory_type: str,
+    key: str,
+    new_value: str,
+    new_keywords: str = "",
+    importance: Optional[int] = None
+) -> bool:
+    """
+    更新已有长期记忆索引记录的内容、关键词和重要度。
+    返回 True 表示更新成功，False 表示未找到对应记录。
+    """
+    existing = await check_memory_exists(db, memory_type, key)
+    if not existing:
+        return False
+
+    existing.value = new_value[:100] if new_value else ""
+    existing.keywords = new_keywords
+    if importance is not None:
+        existing.importance = importance
+    existing.updated_at = datetime.now()
+    await db.commit()
+    return True
+
+async def save_or_update_long_term_memory(
+    db: AsyncSession,
+    memory_type: str,
+    key: str,
+    value: str,
+    keywords: str = "",
+    file_path: str = "",
+    importance: int = 1
+):
+    """
+    若记录已存在则更新，否则新建。
+    这是写入长期记忆索引的统一入口。
+    """
+    existing = await check_memory_exists(db, memory_type, key)
+    if existing:
+        existing.value = value[:100] if value else ""
+        existing.keywords = keywords
+        existing.importance = importance
+        existing.updated_at = datetime.now()
+        await db.commit()
+    else:
+        await save_long_term_memory(
+            db, memory_type, key, value, keywords, file_path, importance
+        )
+
 async def get_long_term_memories(
     db: AsyncSession,
-    user_id: str,
-    memory_type: str = None
-):
-    """获取长期记忆"""
-    query = select(LongTermMemory).where(LongTermMemory.user_id == user_id)
+    memory_type: str = None,
+    limit: int = 20
+) -> List[LongTermMemory]:
+    """获取长期记忆索引，按重要度降序排列。"""
+    query = select(LongTermMemory)
     if memory_type:
         query = query.where(LongTermMemory.memory_type == memory_type)
-    
-    result = await db.execute(query.order_by(desc(LongTermMemory.importance)))
+    query = query.order_by(desc(LongTermMemory.importance)).limit(limit)
+
+    result = await db.execute(query)
     return result.scalars().all()
+
+async def check_memory_exists(
+    db: AsyncSession,
+    memory_type: str,
+    key: str
+) -> Optional[LongTermMemory]:
+    """
+    检查长期记忆是否已存在（按 memory_type + key 唯一查找）。
+    返回记录对象或 None。
+    """
+    result = await db.execute(
+        select(LongTermMemory)
+        .where(LongTermMemory.memory_type == memory_type)
+        .where(LongTermMemory.key == key)
+    )
+    return result.scalar_one_or_none()
+
 
 # ========== 用户状态 ==========
 
@@ -81,13 +156,13 @@ async def get_or_create_user_state(
         select(UserState).where(UserState.user_id == user_id)
     )
     state = result.scalar_one_or_none()
-    
+
     if not state:
         state = UserState(user_id=user_id)
         db.add(state)
         await db.commit()
         await db.refresh(state)
-    
+
     return state
 
 async def update_user_state(
@@ -102,21 +177,6 @@ async def update_user_state(
     state.last_interaction = datetime.now()
     await db.commit()
 
-   #记忆去重
-async def check_memory_exists(
-    db: AsyncSession,
-    user_id: str,
-    memory_type: str,
-    key: str
-):
-    """检查记忆是否已存在"""
-    result = await db.execute(
-        select(LongTermMemory)
-        .where(LongTermMemory.user_id == user_id)
-        .where(LongTermMemory.memory_type == memory_type)
-        .where(LongTermMemory.key == key)
-    )
-    return result.scalar_one_or_none()
 
 # ========== 对话压缩相关 ==========
 

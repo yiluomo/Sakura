@@ -1,0 +1,12 @@
+# 后端 .dockerignore
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.env.*
+*.log
+logs/
+.git/
+.gitignore
+*.md
+test/

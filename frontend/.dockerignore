@@ -1,0 +1,8 @@
+# 前端 .dockerignore
+node_modules/
+dist/
+.env
+.env.*
+*.log
+.git/
+.gitignore

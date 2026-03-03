@@ -1,26 +1,50 @@
+import os
 from pathlib import Path
 from urllib.parse import quote_plus
 
-# 项目根目录
-PROJECT_ROOT = Path(__file__).parent
+# src/ 目录
+SRC_ROOT = Path(__file__).parent
 
-# 1. 先定义 db 文件夹路径（项目根目录下的 db 文件夹）
-DB_DIR = PROJECT_ROOT / "db"
-DB_DIR.mkdir(exist_ok=True)  # 确保 db 文件夹存在
+# Sakura/ 根目录（src/ → backend/ → Sakura/）
+SAKURA_ROOT = Path(__file__).parent.parent.parent
 
-# 2. 将 data 文件夹定义为 db 文件夹的子目录
+# 兼容旧引用
+PROJECT_ROOT = SRC_ROOT
+
+# db 相关目录
+DB_DIR = SRC_ROOT / "db"
+DB_DIR.mkdir(exist_ok=True)
+
 DATA_DIR = DB_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)  # 确保 data 文件夹存在
+DATA_DIR.mkdir(exist_ok=True)
 
-# 数据库配置 - MySQL
-# 格式: mysql+aiomysql://用户名:密码@主机:端口/数据库名
+# ─────────────────────────────────────────────────────────
+# 长期记忆文件存储目录
+# 优先读取环境变量 MEMORY_STORE_DIR（Docker 容器挂载时使用）
+# 未设置则使用相对路径计算（本地开发）
+# ─────────────────────────────────────────────────────────
+_memory_store_env = os.environ.get("MEMORY_STORE_DIR")
+if _memory_store_env:
+    MEMORY_STORE_DIR = Path(_memory_store_env)
+else:
+    MEMORY_STORE_DIR = SAKURA_ROOT / "memory_store"   # 本地：Sakura/memory_store/
+MEMORY_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
-#我的电脑
-DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
-#公司电脑
-# job_computer_psw = "asdag!331@dAaf"
-# encode_psw = quote_plus(job_computer_psw)
-# DATABASE_URL = (f"mysql+aiomysql://root:{encode_psw}@localhost:3306/sakura_db")
+# ─────────────────────────────────────────────────────────
+# 数据库配置
+# 优先读取环境变量 DATABASE_URL（Docker / CI 时注入）
+# 未设置则使用本地硬编码配置
+# ─────────────────────────────────────────────────────────
+_db_url_env = os.environ.get("DATABASE_URL")
+if _db_url_env:
+    DATABASE_URL = _db_url_env                         # Docker 注入
+else:
+    #【个人电脑】
+    # DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
+
+    #【公司电脑】（当前激活）
+    _psw = quote_plus("asdag!331@dAaf")
+    DATABASE_URL = f"mysql+aiomysql://root:{_psw}@localhost:3306/sakura_db"
 
 # LLM API 配置（用于对话总结）
 LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API密钥

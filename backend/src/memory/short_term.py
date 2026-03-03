@@ -5,8 +5,10 @@ from db.crud import (
     count_conversations,
     get_oldest_conversations,
     delete_conversations_by_ids,
-    save_long_term_memory
+    save_or_update_long_term_memory,
 )
+from memory.keyword_extractor import extract_keywords, keywords_to_str
+from memory import file_store
 from llm.adapter import generate
 from config import (
     MEMORY_COMPRESSION_THRESHOLD,
@@ -85,23 +87,33 @@ async def compress_and_archive(
         # 3. 使用LLM总结对话
         summary = await summarize_conversations(oldest_conversations)
 
-        # 4. 保存总结到长期记忆
+        # 4. 写入文件 + 数据库索引（双轨并行）
         if summary and summary != "无重要信息" and summary != "对话总结失败":
-            # 生成时间范围作为key
+            # 生成时间范围作为 key
             start_time = oldest_conversations[0]["timestamp"]
-            end_time = oldest_conversations[-1]["timestamp"]
+            end_time   = oldest_conversations[-1]["timestamp"]
             time_range = f"{start_time[:10]}_to_{end_time[:10]}"
+            memory_type = "conversation_summary"
+            importance  = 3
 
-            await save_long_term_memory(
-                db,
-                user_id,
-                memory_type="conversation_summary",
-                key=time_range,
-                value=summary,
-                importance=3
+            # 提取关键词
+            keywords = await extract_keywords(summary)
+            kw_str   = keywords_to_str(keywords)
+            rel_path = file_store.get_relative_path(memory_type)
+
+            # 写入 .md 文件
+            await file_store.write_entry(
+                memory_type, time_range, summary, keywords, importance
             )
 
-            print(f"✅ 已压缩 {len(oldest_conversations)} 条对话到长期记忆")
+            # 写入数据库索引（使用独立 session，避免变量名遮蔽外层 db）
+            async with AsyncSessionLocal() as db_index:
+                await save_or_update_long_term_memory(
+                    db_index, memory_type, time_range, summary,
+                    kw_str, rel_path, importance
+                )
+
+            print(f"✅ 已压缩 {len(oldest_conversations)} 条对话到长期记忆，关键词: {kw_str}")
 
         # 5. 删除已压缩的对话
         conversation_ids = [conv["id"] for conv in oldest_conversations]

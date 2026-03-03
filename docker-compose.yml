@@ -1,0 +1,88 @@
+# ─────────────────────────────────────────────────────────
+# Sakura docker-compose.yml
+# 服务编排：mysql + backend + frontend
+#
+# 使用方式：
+#   docker compose up -d          # 启动全部服务
+#   docker compose down           # 停止并移除容器
+#   docker compose logs -f        # 查看实时日志
+#   docker compose logs backend   # 只看后端日志
+# ─────────────────────────────────────────────────────────
+
+services:
+
+  # ── MySQL 数据库 ───────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: sakura_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: YaeSakura
+      MYSQL_DATABASE: sakura_db
+      MYSQL_CHARSET: utf8mb4
+    volumes:
+      - mysql_data:/var/lib/mysql        # 持久化数据库数据
+    ports:
+      - "3306:3306"                      # 可选，暴露到宿主机（方便本地 MySQL 客户端连接）
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pYaeSakura"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - sakura_net
+
+
+  # ── FastAPI 后端 ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sakura_backend
+    restart: unless-stopped
+    environment:
+      # 数据库连接（指向 mysql 服务名，而非 localhost）
+      DATABASE_URL: "mysql+aiomysql://root:YaeSakura@mysql:3306/sakura_db"
+      # 记忆文件存储路径（容器内挂载点）
+      MEMORY_STORE_DIR: "/memory_store"
+    volumes:
+      - memory_store:/memory_store       # 长期记忆 .md 文件持久化
+      - ./backend/src/logs:/app/logs     # 日志持久化（确保宿主机目录存在）
+    ports:
+      - "8000:8000"                      # 可选，暴露给宿主机直接调试
+    depends_on:
+      mysql:
+        condition: service_healthy       # 等 MySQL 健康检查通过才启动
+    networks:
+      - sakura_net
+
+
+  # ── Vue3 前端 + Nginx ─────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sakura_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"                          # 对外暴露，访问 http://localhost
+    depends_on:
+      - backend
+    networks:
+      - sakura_net
+
+
+# ── 持久化卷 ─────────────────────────────────────────────
+volumes:
+  mysql_data:
+    name: sakura_mysql_data              # 数据库数据，不随 compose down 删除
+  memory_store:
+    name: sakura_memory_store            # 长期记忆文件，不随 compose down 删除
+
+
+# ── 内部网络 ─────────────────────────────────────────────
+networks:
+  sakura_net:
+    name: sakura_network
+    driver: bridge

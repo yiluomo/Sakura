@@ -19,20 +19,22 @@ class Conversation(Base):
     )
 
 class LongTermMemory(Base):
-    """长期记忆表"""
+    """长期记忆索引表（与 memory_store/*.md 文件双轨并行）"""
     __tablename__ = "long_term_memory"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(50), nullable=False)
-    memory_type = Column(String(50))  # 'profile', 'preference', 'event'
-    key = Column(String(100))
-    value = Column(Text)
-    importance = Column(Integer, default=1)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    memory_type = Column(String(50),  nullable=False)           # 记忆类型：name/hobby/manual/conversation_summary 等
+    key         = Column(String(100), nullable=False)           # 条目唯一标识键，如 "我叫"、"我喜欢"
+    value       = Column(Text)                                  # 内容摘要（前100字），便于快速预览
+    keywords    = Column(String(500), default="")               # LLM 提取的关键词，逗号分隔
+    file_path   = Column(String(200), default="")               # 对应 .md 文件的相对路径，如 "memory_store/profile.md"
+    importance  = Column(Integer, default=1)                    # 重要度 1~5
+    created_at  = Column(DateTime, default=datetime.now)
+    updated_at  = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
     __table_args__ = (
-        Index('idx_user_type', 'user_id', 'memory_type'),
+        Index('idx_type_key',    'memory_type', 'key'),         # 去重 / 精确查找
+        Index('idx_importance',  'importance'),                  # 按重要度排序
     )
 
 class UserState(Base):
