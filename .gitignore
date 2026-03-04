@@ -83,3 +83,6 @@ htmlcov/
 # Documentation build
 docs/_build/
 docs/.doctrees/
+
+# 记忆内容本地保存不带走
+memory_store/
