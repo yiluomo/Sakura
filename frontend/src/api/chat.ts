@@ -8,6 +8,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   reply: string | null
   memory_info?: MemoryInfo | null
+  audio_url?: string | null      // TTS 生成的音频路径，如 "/audio/xxxx.mp3"
 }
 
 export interface MemoryInfo {
@@ -69,6 +70,26 @@ export const chatApi = {
     const response = await apiClient.post(`/memory/archive`, null, {
       params: { user_id: userId }
     })
-    return response.data
+    return response.data as { status: string; msg: string; archived_count: number }
+  },
+
+  /**
+   * 播放音频（传入 audio_url 即可）
+   * @param audioUrl  后端返回的 audio_url，如 "/audio/xxxx.mp3"
+   */
+  playAudio(audioUrl: string | null | undefined): HTMLAudioElement | null {
+    if (!audioUrl) return null
+    const audio = new Audio(`http://localhost:8000${audioUrl}`)
+    audio.play().catch(e => console.warn('[TTS] 播放失败:', e))
+    return audio
+  },
+
+  /**
+   * 按需生成 TTS 音频（无缓存时调用后端接口，有缓存直接命中）
+   * @param text 要合成的文本
+   */
+  async generateTts(text: string): Promise<string | null> {
+    const response = await apiClient.post<{ audio_url: string | null }>('/tts', { text })
+    return (response.data as any).audio_url ?? null
   }
 }

@@ -34,7 +34,8 @@ function createWindow() {
     if (isDev) {
         // 开发模式：加载 Vite 开发服务器（需先启动 npm run dev）
         mainWindow.loadURL('http://localhost:722')
-        mainWindow.webContents.openDevTools()
+        // 调试时手动开启：Ctrl+Shift+I，或取消下方注释
+        // mainWindow.webContents.openDevTools()
     } else {
         // 生产模式：加载构建后的静态文件
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))

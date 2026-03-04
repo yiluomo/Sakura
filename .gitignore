@@ -85,4 +85,7 @@ docs/_build/
 docs/.doctrees/
 
 # 记忆内容本地保存不带走
-memory_store/
+memory_store/.
+
+# TTS 音频缓存（本地生成，不提交）
+audio_cache/

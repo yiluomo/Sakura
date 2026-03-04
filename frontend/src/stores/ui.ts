@@ -5,6 +5,10 @@ import type { UIState } from '@/types'
 export const useUIStore = defineStore('ui', () => {
   const isDarkMode = ref(false)
   const sidebarCollapsed = ref(false)
+  // TTS 自动播放开关（默认开启，持久化到 localStorage）
+  const ttsAutoPlay = ref(
+    localStorage.getItem('ttsAutoPlay') !== 'false'
+  )
 
   const toggleDarkMode = () => {
     isDarkMode.value = !isDarkMode.value
@@ -13,6 +17,11 @@ export const useUIStore = defineStore('ui', () => {
 
   const toggleSidebar = () => {
     sidebarCollapsed.value = !sidebarCollapsed.value
+  }
+
+  const toggleTtsAutoPlay = () => {
+    ttsAutoPlay.value = !ttsAutoPlay.value
+    localStorage.setItem('ttsAutoPlay', ttsAutoPlay.value.toString())
   }
 
   const initializeTheme = () => {
@@ -27,8 +36,10 @@ export const useUIStore = defineStore('ui', () => {
   return {
     isDarkMode,
     sidebarCollapsed,
+    ttsAutoPlay,
     toggleDarkMode,
     toggleSidebar,
+    toggleTtsAutoPlay,
     initializeTheme,
   }
 })

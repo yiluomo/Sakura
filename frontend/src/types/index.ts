@@ -4,6 +4,7 @@ export interface Message {
   content: string
   timestamp: Date
   error?: string
+  audio_url?: string | null   // TTS 生成的音频路径
 }
 
 export interface ChatState {

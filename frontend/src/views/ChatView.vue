@@ -12,6 +12,15 @@
       
       <div class="header-right">
         <el-button @click="toggleTheme" :icon="isDarkMode ? Sunny : Moon" circle />
+        <!-- TTS 自动播放开关 -->
+        <el-tooltip :content="ttsAutoPlay ? '自动播放语音: 开' : '自动播放语音: 关'" placement="bottom">
+          <el-button
+            @click="toggleTtsAutoPlay"
+            :icon="ttsAutoPlay ? Headset : Mute"
+            circle
+            :type="ttsAutoPlay ? 'primary' : 'default'"
+          />
+        </el-tooltip>
         <el-button
           @click="archiveAndClear"
           :icon="Files"
@@ -52,7 +61,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Sunny, Moon, Files, ChatDotRound } from '@element-plus/icons-vue'
+import { Sunny, Moon, Files, ChatDotRound, Headset, Mute } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import { useChatStore } from '@/stores/chat'
@@ -65,10 +74,14 @@ const uiStore = useUIStore()
 
 const messagesContainer = ref<HTMLElement>()
 
-const messages = computed(() => chatStore.messages)
-const isLoading = computed(() => chatStore.isLoading)
-const isDarkMode = computed(() => uiStore.isDarkMode)
-const isArchiving = ref(false)
+const messages      = computed(() => chatStore.messages)
+const isLoading     = computed(() => chatStore.isLoading)
+const isDarkMode    = computed(() => uiStore.isDarkMode)
+const ttsAutoPlay   = computed(() => uiStore.ttsAutoPlay)
+const isArchiving   = ref(false)
+
+const toggleTheme        = () => uiStore.toggleDarkMode()
+const toggleTtsAutoPlay  = () => uiStore.toggleTtsAutoPlay()
 
 // 监听消息变化，自动滚动到底部
 watch(
@@ -150,12 +163,16 @@ const handleMemoryConfirm = async (memoryInfo: MemoryInfo) => {
 const handleSendMessage = async (content: string) => {
   try {
     const response = await chatStore.sendMessage(content)
-    
+
+    // 自动播放：仅当 ttsAutoPlay 开启且有 audio_url 时播放
+    if (ttsAutoPlay.value && response.audio_url) {
+      chatApi.playAudio(response.audio_url)
+    }
+
     // 检查是否有记忆信息需要确认
     if (response.memory_info) {
       await handleMemoryConfirm(response.memory_info)
     }
-    // scrollToBottom 会由 watch 自动触发
   } catch (error) {
     ElMessage.error('发送消息失败，请重试')
   }
@@ -208,10 +225,6 @@ const archiveAndClear = async () => {
   } finally {
     isArchiving.value = false
   }
-}
-
-const toggleTheme = () => {
-  uiStore.toggleDarkMode()
 }
 </script>
 

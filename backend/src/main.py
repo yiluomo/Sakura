@@ -7,8 +7,10 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from api.chat import router as chat_router
 from db.database import init_db
+from config import AUDIO_CACHE_DIR
 
 # 定义异步生命周期函数（核心替换 on_event 的部分）
 async def lifespan(app: FastAPI):
@@ -39,6 +41,9 @@ app.add_middleware(
 
 # 注册聊天路由
 app.include_router(chat_router, prefix="/api")
+
+# 挂载音频缓存目录（TTS 生成的 MP3 文件通过此路径访问）
+app.mount("/audio", StaticFiles(directory=str(AUDIO_CACHE_DIR)), name="audio")
 
 # 根路径接口
 @app.get("/")

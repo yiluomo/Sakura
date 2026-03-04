@@ -55,3 +55,25 @@ LLM_MODEL = "deepseek-chat"  # 用于总结的模型
 MEMORY_COMPRESSION_THRESHOLD = 200  # 触发压缩的对话数量阈值
 MEMORY_COMPRESSION_BATCH_SIZE = 150  # 每次压缩的对话数量
 MEMORY_KEEP_RECENT_COUNT = 50  # 压缩后保留的最近对话数量
+
+# ─────────────────────────────────────────────────────────
+# TTS 语音合成配置
+# ─────────────────────────────────────────────────────────
+
+# 是否启用 TTS（False 时 /chat 接口 audio_url 始终返回 null）
+TTS_ENABLED = os.environ.get("TTS_ENABLED", "true").lower() == "true"
+
+# 当前使用的 TTS 引擎（修改此处即可切换引擎）
+# 支持：fish_audio
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "fish_audio")
+
+# Fish Audio 配置
+FISH_AUDIO_API_KEY  = os.environ.get("FISH_AUDIO_API_KEY",  "29f45a8c3744438faf291b84d4537b52")
+FISH_AUDIO_MODEL_ID = os.environ.get("FISH_AUDIO_MODEL_ID", "507248329802416cb183d0b74be182bf")
+
+# 音频缓存目录（Sakura/audio_cache/，已加入 .gitignore）
+AUDIO_CACHE_DIR = SAKURA_ROOT / "audio_cache"
+AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# 缓存最大文件数，超出时自动删除最旧的文件
+AUDIO_CACHE_MAX_FILES = int(os.environ.get("AUDIO_CACHE_MAX_FILES", "200"))

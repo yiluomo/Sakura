@@ -29,7 +29,20 @@
         <span>{{ message.error }}</span>
       </div>
       
+      <!-- 语音按钮 + 常规操作 -->
       <div class="message-actions">
+        <!-- 常驻语音按钮：仅助手消息显示 -->
+        <button
+          v-if="message.role === 'assistant'"
+          class="voice-btn"
+          :class="{ playing: isPlaying, loading: isTtsLoading }"
+          @click="handleVoice"
+          :title="isPlaying ? '停止播放' : '播放语音'"
+        >
+          <span v-if="isTtsLoading" class="voice-icon">⏳</span>
+          <span v-else-if="isPlaying" class="voice-icon">🔊</span>
+          <span v-else class="voice-icon">🔈</span>
+        </button>
         <el-button size="small" text @click="copyMessage">
           <el-icon><CopyDocument /></el-icon>
         </el-button>
@@ -45,10 +58,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, ArrowDown, ArrowUp, CopyDocument, Refresh, Delete, Warning } from '@element-plus/icons-vue'
 import type { Message } from '@/types'
+import { chatApi } from '@/api/chat'
 import sakuraAvatar from '@/asserts/img/sakura_avatar.jpeg'
 
 interface Props {
@@ -86,6 +100,67 @@ const formatTime = (date: Date) => {
       hour: '2-digit',
       minute: '2-digit',
     }).format(messageDate)
+  }
+}
+
+// 内部维护一份可变的 audio_url（允许按需调接口后回写）
+const localAudioUrl = ref<string | null>(props.message.audio_url ?? null)
+
+// 监听 props 变化（讨论列表刷新时同步）
+watch(() => props.message.audio_url, (val) => {
+  localAudioUrl.value = val ?? null
+})
+
+const isPlaying    = ref(false)
+const isTtsLoading = ref(false)
+let   currentAudio: HTMLAudioElement | null = null
+
+/**
+ * 点击语音按钮：
+ * - 正在播放 → 停止
+ * - 有缓存 → 直接播放
+ * - 无缓存 → 调接口生成再播放
+ */
+const handleVoice = async () => {
+  // 当前正在播放 → 停止
+  if (isPlaying.value && currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
+    isPlaying.value = false
+    return
+  }
+
+  // 尝试获取音频 URL
+  let url = localAudioUrl.value
+
+  if (!url) {
+    // 无缓存 → 调接接口生成
+    isTtsLoading.value = true
+    try {
+      url = await chatApi.generateTts(props.message.content)
+      if (url) localAudioUrl.value = url   // 回写到本地，下次直接播放
+    } catch (e) {
+      console.warn('[TTS] 生成失败', e)
+    } finally {
+      isTtsLoading.value = false
+    }
+  }
+
+  if (!url) return   // 生成失败（TTS 未启用 / API 报错）
+
+  // 播放
+  const audio = chatApi.playAudio(url)
+  if (audio) {
+    currentAudio    = audio
+    isPlaying.value = true
+    audio.onended = () => {
+      isPlaying.value = false
+      currentAudio    = null
+    }
+    audio.onerror = () => {
+      isPlaying.value = false
+      currentAudio    = null
+    }
   }
 }
 
@@ -202,12 +277,53 @@ const copyMessage = async () => {
 .message-actions {
   display: flex;
   gap: 4px;
+  align-items: center;
   opacity: 0;
   transition: opacity 0.2s ease;
 
   .chat-message:hover & {
     opacity: 1;
   }
+}
+
+/* 语音按钮：常驻显示，不受悬停隐藏控制 */
+.voice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+
+  .voice-icon {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+  }
+
+  &.playing {
+    background: rgba(var(--el-color-primary-rgb), 0.25);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  &.loading {
+    opacity: 0.6;
+    cursor: wait;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.12); }
 }
 
 .dark-theme {
