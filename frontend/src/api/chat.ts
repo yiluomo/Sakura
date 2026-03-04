@@ -63,5 +63,12 @@ export const chatApi = {
       confirmed: confirmed
     })
     return response.data
+  },
+
+  archiveMemory: async (userId: string = '依洛沐'): Promise<{ status: string; msg: string; archived_count: number }> => {
+    const response = await apiClient.post(`/memory/archive`, null, {
+      params: { user_id: userId }
+    })
+    return response.data
   }
 }

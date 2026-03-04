@@ -146,10 +146,9 @@ async def confirm_save_memory(user_id: str, memory_info: Dict) -> bool:
         # 1. LLM 提取关键词（失败时降级为空列表）
         keywords = await extract_keywords(content)
         kw_str   = keywords_to_str(keywords)
-        rel_path = file_store.get_relative_path(memory_type)
 
-        # 2. 写入 .md 文件
-        await file_store.write_entry(memory_type, key, content, keywords, importance)
+        # 2. 写入 .md 文件，返回实际写入的文件路径
+        rel_path = await file_store.write_entry(memory_type, key, content, keywords, importance)
 
         # 3. 写入/更新数据库索引
         async with AsyncSessionLocal() as db:

@@ -12,7 +12,13 @@
       
       <div class="header-right">
         <el-button @click="toggleTheme" :icon="isDarkMode ? Sunny : Moon" circle />
-        <el-button @click="clearChat" :icon="Delete">清空对话</el-button>
+        <el-button
+          @click="archiveAndClear"
+          :icon="Files"
+          :loading="isArchiving"
+          type="primary"
+          plain
+        >珍藏此刻</el-button>
       </div>
     </div>
     
@@ -46,11 +52,12 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Sunny, Moon, Delete, ChatDotRound } from '@element-plus/icons-vue'
+import { Sunny, Moon, Files, ChatDotRound } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import { useChatStore } from '@/stores/chat'
 import { useUIStore } from '@/stores/ui'
+import { chatApi } from '@/api/chat'
 import type { MemoryInfo } from '@/api/chat'
 
 const chatStore = useChatStore()
@@ -61,6 +68,7 @@ const messagesContainer = ref<HTMLElement>()
 const messages = computed(() => chatStore.messages)
 const isLoading = computed(() => chatStore.isLoading)
 const isDarkMode = computed(() => uiStore.isDarkMode)
+const isArchiving = ref(false)
 
 // 监听消息变化，自动滚动到底部
 watch(
@@ -173,14 +181,32 @@ const deleteMessage = async (messageId: string) => {
   }
 }
 
-const clearChat = async () => {
+const archiveAndClear = async () => {
   try {
-    await ElMessageBox.confirm('确定要清空所有对话记录吗？', '确认清空', {
-      type: 'warning',
-    })
-    chatStore.clearMessages()
-  } catch {
-    // 用户取消清空
+    await ElMessageBox.confirm(
+      '将当前所有对话压缩总结后归档为长期记忆，并清空当前对话列表。\n\n此操作需要调用 LLM，可能需要几秒钟。',
+      '归档记忆',
+      {
+        confirmButtonText: '确认归档',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+
+    isArchiving.value = true
+    const result = await chatApi.archiveMemory()
+
+    if (result.status === 'ok') {
+      // 归档成功：清空前端消息列表
+      chatStore.clearMessages()
+      ElMessage.success(`✅ ${result.msg}`)
+    } else {
+      ElMessage.warning(result.msg)
+    }
+  } catch (action) {
+    // 用户取消，不处理
+  } finally {
+    isArchiving.value = false
   }
 }
 

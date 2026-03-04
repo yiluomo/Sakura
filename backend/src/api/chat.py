@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from core.conversation import handle_message
-from memory.short_term import get_recent
+from memory.short_term import get_recent, force_archive
 from memory.long_term import save_memory, confirm_save_memory
 from typing import Optional, Dict, Any
 
@@ -23,6 +23,27 @@ class MemoryConfirmRequest(BaseModel):
 @router.get("/history")
 async def get_history(user_id: str = "依洛沐"):
     return await get_recent(user_id)
+
+@router.post("/memory/archive")
+async def archive_memory(user_id: str = "依洛沐"):
+    """
+    手动触发短期记忆归档：
+    将当前全部短期记忆压缩总结后写入长期记忆文件和数据库索引，
+    然后清空数据库中的短期对话记录。
+    不受对话数量阈值限制，随时可手动触发。
+    """
+    result = await force_archive(user_id)
+    if result["success"]:
+        return {
+            "status": "ok",
+            "msg": result["msg"],
+            "archived_count": result.get("archived_count", 0)
+        }
+    else:
+        return {
+            "status": "error",
+            "msg": result["msg"]
+        }
 
 @router.post("/memory")
 async def add_memory(req: MemoryRequest):

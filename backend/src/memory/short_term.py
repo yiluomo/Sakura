@@ -99,10 +99,9 @@ async def compress_and_archive(
             # 提取关键词
             keywords = await extract_keywords(summary)
             kw_str   = keywords_to_str(keywords)
-            rel_path = file_store.get_relative_path(memory_type)
 
-            # 写入 .md 文件
-            await file_store.write_entry(
+            # 写入 .md 文件，返回实际写入的文件路径
+            rel_path = await file_store.write_entry(
                 memory_type, time_range, summary, keywords, importance
             )
 
@@ -132,3 +131,66 @@ async def check_and_compress(user_id: str):
     except Exception as e:
         print(f"❌ 压缩检查失败: {e}")
         # 不影响主流程，继续执行
+
+
+async def force_archive(user_id: str) -> dict:
+    """
+    手动强制归档：无视阈值限制，将当前全部短期记忆压缩总结后
+    写入长期记忆文件和数据库索引，并清空数据库中的短期对话记录。
+
+    Returns:
+        {"success": bool, "msg": str, "archived_count": int}
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            # 获取全部对话记录
+            all_conversations = await get_recent_conversations(db, user_id, limit=10000)
+
+        if not all_conversations:
+            return {"success": False, "msg": "当前没有可归档的对话记录", "archived_count": 0}
+
+        archived_count = len(all_conversations)
+
+        # 1. LLM 总结
+        summary = await summarize_conversations(all_conversations)
+        if not summary or summary in ("无重要信息", "对话总结失败"):
+            return {"success": False, "msg": f"对话总结失败：{summary}", "archived_count": 0}
+
+        # 2. 生成时间范围 key
+        start_time = all_conversations[0]["timestamp"]
+        end_time   = all_conversations[-1]["timestamp"]
+        time_range = f"{start_time[:10]}_to_{end_time[:10]}"
+        memory_type = "conversation_summary"
+        importance  = 3
+
+        # 3. 提取关键词
+        keywords = await extract_keywords(summary)
+        kw_str   = keywords_to_str(keywords)
+
+        # 4. 写入 .md 文件，返回实际写入的文件路径
+        rel_path = await file_store.write_entry(memory_type, time_range, summary, keywords, importance)
+
+        # 5. 写入数据库索引
+        async with AsyncSessionLocal() as db_index:
+            await save_or_update_long_term_memory(
+                db_index, memory_type, time_range, summary,
+                kw_str, rel_path, importance
+            )
+
+        # 6. 清空所有短期对话记录
+        async with AsyncSessionLocal() as db:
+            conversations_with_ids = await get_oldest_conversations(db, user_id, limit=10000)
+            ids_to_delete = [c["id"] for c in conversations_with_ids]
+            if ids_to_delete:
+                await delete_conversations_by_ids(db, ids_to_delete)
+
+        msg = f"已归档 {archived_count} 条对话，关键词：{kw_str}"
+        print(f"✅ [force_archive] {msg}")
+        return {"success": True, "msg": msg, "archived_count": archived_count}
+
+    except Exception as e:
+        print(f"❌ [force_archive] 归档失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "msg": f"归档失败：{str(e)}", "archived_count": 0}
+
