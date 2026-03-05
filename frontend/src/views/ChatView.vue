@@ -4,6 +4,14 @@
       <source src="@/asserts/video/chat.mp4" type="video/mp4">
     </video>
     
+    <!-- 错误提示组件 -->
+    <ErrorToast
+      v-model:visible="uiStore.errorToast.visible"
+      :title="uiStore.errorToast.title"
+      :message="uiStore.errorToast.message"
+      :type="uiStore.errorToast.type"
+    />
+    
     <div class="chat-content">
     <div class="chat-header">
       <div class="header-left">
@@ -64,9 +72,11 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import { Sunny, Moon, Files, ChatDotRound, Headset, Mute } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
+import ErrorToast from '@/components/common/ErrorToast.vue'
 import { useChatStore } from '@/stores/chat'
 import { useUIStore } from '@/stores/ui'
 import { chatApi } from '@/api/chat'
+import { parseError } from '@/utils/errorHandler'
 import type { MemoryInfo } from '@/api/chat'
 
 const chatStore = useChatStore()
@@ -81,7 +91,22 @@ const ttsAutoPlay   = computed(() => uiStore.ttsAutoPlay)
 const isArchiving   = ref(false)
 
 const toggleTheme        = () => uiStore.toggleDarkMode()
-const toggleTtsAutoPlay  = () => uiStore.toggleTtsAutoPlay()
+const toggleTtsAutoPlay  = async () => {
+  // 如果是要开启 TTS，先测试服务是否可用
+  if (!ttsAutoPlay.value) {
+    const testResult = await chatApi.testTts()
+    if (!testResult.available) {
+      uiStore.showError({
+        title: 'TTS 服务不可用',
+        message: testResult.error || 'TTS 服务未启动或配置错误',
+        type: 'warning'
+      })
+      return // 不开启 TTS
+    }
+  }
+  
+  uiStore.toggleTtsAutoPlay()
+}
 
 // 监听消息变化，自动滚动到底部
 watch(
@@ -166,7 +191,12 @@ const handleSendMessage = async (content: string) => {
 
     // 自动播放：仅当 ttsAutoPlay 开启且有 audio_url 时播放
     if (ttsAutoPlay.value && response.audio_url) {
-      chatApi.playAudio(response.audio_url)
+      try {
+        chatApi.playAudio(response.audio_url)
+      } catch (audioError) {
+        // 音频播放失败不显示错误，静默处理
+        console.warn('音频播放失败:', audioError)
+      }
     }
 
     // 检查是否有记忆信息需要确认
@@ -174,7 +204,9 @@ const handleSendMessage = async (content: string) => {
       await handleMemoryConfirm(response.memory_info)
     }
   } catch (error) {
-    ElMessage.error('发送消息失败，请重试')
+    // 使用错误处理工具解析错误
+    const errorInfo = parseError(error)
+    uiStore.showError(errorInfo)
   }
 }
 
@@ -183,7 +215,8 @@ const retryMessage = async (messageId: string) => {
     await chatStore.retryMessage(messageId)
     // scrollToBottom 会由 watch 自动触发
   } catch (error) {
-    ElMessage.error('重试失败，请重试')
+    const errorInfo = parseError(error)
+    uiStore.showError(errorInfo)
   }
 }
 
@@ -221,7 +254,11 @@ const archiveAndClear = async () => {
       ElMessage.warning(result.msg)
     }
   } catch (action) {
-    // 用户取消，不处理
+    // 用户取消或发生错误
+    if (action !== 'cancel' && action !== 'close') {
+      const errorInfo = parseError(action)
+      uiStore.showError(errorInfo)
+    }
   } finally {
     isArchiving.value = false
   }

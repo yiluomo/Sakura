@@ -99,8 +99,15 @@ async def generate_tts(req: TTSRequest):
     前端手动点击播放按钮且尚未生成过音频时调用。
     命中缓存时直接返回已有 URL，不重复请求 GPT-SoVITS API。
     """
-    audio_url = await tts_adapter.synthesize(req.text)
-    return {"audio_url": audio_url}
+    try:
+        audio_url = await tts_adapter.synthesize(req.text)
+        return {"audio_url": audio_url}
+    except Exception as e:
+        # 返回友好的错误信息，不暴露技术细节
+        error_msg = "TTS 服务不可用"
+        if "Connection" in str(e) or "connect" in str(e).lower():
+            error_msg = "TTS 服务未启动"
+        return {"audio_url": None, "error": error_msg}
 
 
 @router.post("/tts/set_refer_audio")
@@ -150,7 +157,14 @@ async def chat(req: ChatRequest):
     reply  = result["reply"]
 
     # 2. 并发调用 TTS（不阻塞主流程，失败时静默降级）
-    audio_url = await tts_adapter.synthesize(reply) if reply else None
+    audio_url = None
+    if reply:
+        try:
+            audio_url = await tts_adapter.synthesize(reply)
+        except Exception as e:
+            # TTS 失败不影响对话功能，仅记录日志
+            print(f"⚠️  [TTS] 音频生成失败（不影响对话）：{e}")
+            audio_url = None
 
     return {
         "reply":       reply,

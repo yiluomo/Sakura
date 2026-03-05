@@ -22,10 +22,32 @@ class ApiClient {
   }
 
   private setupInterceptors() {
+    // 请求拦截器
+    this.client.interceptors.request.use(
+      config => config,
+      error => Promise.reject(error)
+    )
+
+    // 响应拦截器
     this.client.interceptors.response.use(
       response => response,
       error => {
-        console.error('API Error:', error)
+        // 增强错误信息
+        if (error.response) {
+          // 服务器返回错误状态码
+          error.message = error.response.data?.msg || error.response.data?.message || error.message
+        } else if (error.request) {
+          // 请求已发送但没有收到响应
+          error.code = 'ERR_NETWORK'
+          error.message = '网络连接失败'
+        }
+        
+        console.error('API Error:', {
+          url: error.config?.url,
+          status: error.response?.status,
+          message: error.message
+        })
+        
         return Promise.reject(error)
       }
     )

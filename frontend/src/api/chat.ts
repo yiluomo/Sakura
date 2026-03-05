@@ -95,8 +95,33 @@ export const chatApi = {
    * @param text 要合成的文本
    */
   async generateTts(text: string): Promise<string | null> {
-    const response = await apiClient.post<{ audio_url: string | null }>('/tts', { text })
-    return (response.data as any).audio_url ?? null
+    const response = await apiClient.post<{ audio_url: string | null; error?: string }>('/tts', { text })
+    const data = response.data as any
+    if (data.error) {
+      throw new Error(data.error)
+    }
+    return data.audio_url ?? null
+  },
+
+  /**
+   * 测试 TTS 服务是否可用
+   */
+  async testTts(): Promise<{ available: boolean; error?: string }> {
+    try {
+      const response = await apiClient.post<{ audio_url: string | null; error?: string }>('/tts', { 
+        text: '测试' 
+      })
+      const data = response.data as any
+      if (data.error) {
+        return { available: false, error: data.error }
+      }
+      return { available: !!data.audio_url }
+    } catch (error: any) {
+      return { 
+        available: false, 
+        error: error.response?.data?.error || error.message || 'TTS 服务不可用' 
+      }
+    }
   },
 
   /**

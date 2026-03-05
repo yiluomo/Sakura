@@ -139,28 +139,43 @@ const handleVoice = async () => {
     try {
       url = await chatApi.generateTts(props.message.content)
       if (url) localAudioUrl.value = url   // 回写到本地，下次直接播放
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[TTS] 生成失败', e)
+      ElMessage.warning({
+        message: e.message || '语音合成服务不可用',
+        duration: 3000
+      })
+      isTtsLoading.value = false
+      return
     } finally {
       isTtsLoading.value = false
     }
   }
 
-  if (!url) return   // 生成失败（TTS 未启用 / API 报错）
+  if (!url) {
+    ElMessage.warning('语音合成服务不可用')
+    return
+  }
 
   // 播放
-  const audio = chatApi.playAudio(url)
-  if (audio) {
-    currentAudio    = audio
-    isPlaying.value = true
-    audio.onended = () => {
-      isPlaying.value = false
-      currentAudio    = null
+  try {
+    const audio = chatApi.playAudio(url)
+    if (audio) {
+      currentAudio    = audio
+      isPlaying.value = true
+      audio.onended = () => {
+        isPlaying.value = false
+        currentAudio    = null
+      }
+      audio.onerror = () => {
+        isPlaying.value = false
+        currentAudio    = null
+        ElMessage.warning('音频播放失败')
+      }
     }
-    audio.onerror = () => {
-      isPlaying.value = false
-      currentAudio    = null
-    }
+  } catch (e) {
+    console.warn('[TTS] 播放失败', e)
+    ElMessage.warning('音频播放失败')
   }
 }
 

@@ -67,6 +67,7 @@ export const useChatStore = defineStore('chat', () => {
       return response
     } catch (err) {
       error.value = err instanceof Error ? err.message : '发送消息失败'
+      // 发送失败时移除用户消息
       const lastMessage = messages.value[messages.value.length - 1]
       if (lastMessage && lastMessage.role === 'user') {
         messages.value.pop()
