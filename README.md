@@ -82,8 +82,9 @@ Core 层 (人格 / 决策 / 调度)               ← 她的意识中枢
 
 ### 🎙️ Phase 2.5: 语音系统
 - [x] TTS 模块架构（`tts/adapter.py` + `tts/base.py` + `tts/engines/`）
-- [x] Fish Audio 引擎实现
+- [x] GPT-SoVITS 引擎实现（本地部署，无需联网）
 - [ ] Edge-TTS 兜底引擎（免费，通用语音）
+- [ ] ASR 语音识别
 - [ ] 角色专属声线模型接入（待确定 TTS 服务商）
 
 ### 🎨 Phase 3: 表现层
@@ -156,10 +157,10 @@ DATABASE_URL = "mysql+aiomysql://root:your_password@localhost:3306/sakura_db"
 LLM_API_KEY  = "your-api-key-here"
 
 # TTS（可选，关闭则前端无语音，不影响对话）
-TTS_ENABLED          = True
-TTS_ENGINE           = "fish_audio"      # 目前支持 fish_audio
-FISH_AUDIO_API_KEY   = "your-fish-audio-key"
-FISH_AUDIO_MODEL_ID  = "your-model-id"  # Fish Audio 声线模型 ID
+TTS_ENABLED            = True
+TTS_ENGINE             = "gpt_sovits"           # 目前支持 gpt_sovits
+GPT_SOVITS_BASE_URL    = "http://127.0.0.1:9872" # GPT-SoVITS 服务地址
+GPT_SOVITS_REF_AUDIO_PATH = r"C:\path\to\reference.wav"  # 参考音频绝对路径
 ```
 
 #### 3. 初始化数据库
@@ -195,14 +196,14 @@ npm run dev            # 浏览器模式（端口 722）
 TTS 模块采用**适配器模式**，引擎可灵活替换，只需修改 `config.py` 中的一行配置：
 
 ```python
-TTS_ENGINE = "fish_audio"   # 换引擎改这里
+TTS_ENGINE = "gpt_sovits"   # 换引擎改这里
 ```
 
 ### 目前支持的引擎
 
 | 引擎 | 说明 | 费用 |
 |------|------|------|
-| `fish_audio` | 角色声线克隆，音质极佳 | 付费，约 ¥0.05/千字符 |
+| `gpt_sovits` | 本地推理，音色克隆，无需联网 | 免费（需本地部署 GPT-SoVITS）|
 
 ### 添加新引擎
 
@@ -236,7 +237,7 @@ Sakura/
 │   │   │   ├── base.py               # 抽象基类（换引擎继承此类）
 │   │   │   ├── adapter.py            # 适配器（缓存 + 工厂 + 路由）
 │   │   │   └── engines/
-│   │   │       └── fish_audio.py     # Fish Audio 实现
+│   │   │       └── gpt_sovits.py     # GPT-SoVITS 引擎实现
 │   │   ├── db/                   # 数据库层
 │   │   ├── config.py             # 配置（含 TTS、Memory、DB 配置）
 │   │   ├── main.py               # 应用入口（挂载 /audio 静态路由）
@@ -271,7 +272,7 @@ Sakura/
 | 数据库 | MySQL + SQLAlchemy (异步) |
 | 大模型 | DeepSeek API / Ollama (可切换) |
 | 文件 IO | aiofiles (异步) |
-| TTS | Fish Audio API（适配器模式，可扩展）|
+| TTS | GPT-SoVITS（本地部署，适配器模式，可扩展）|
 | 前端框架 | Vue 3 + TypeScript + Element Plus |
 | 桌面封装 | Electron + electron-builder |
 | 容器化 | Docker + docker-compose |

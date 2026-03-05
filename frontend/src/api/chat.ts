@@ -8,7 +8,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   reply: string | null
   memory_info?: MemoryInfo | null
-  audio_url?: string | null      // TTS 生成的音频路径，如 "/audio/xxxx.mp3"
+  audio_url?: string | null      // TTS 生成的音频路径，如 "/audio/xxxx.wav"
 }
 
 export interface MemoryInfo {
@@ -30,6 +30,12 @@ export interface MemoryConfirmRequest {
 export interface MemoryConfirmResponse {
   status: string
   reply?: string
+  msg: string
+}
+
+/** GPT-SoVITS 管理接口响应 */
+export interface TTSControlResponse {
+  status: 'ok' | 'error'
   msg: string
 }
 
@@ -75,7 +81,7 @@ export const chatApi = {
 
   /**
    * 播放音频（传入 audio_url 即可）
-   * @param audioUrl  后端返回的 audio_url，如 "/audio/xxxx.mp3"
+   * @param audioUrl  后端返回的 audio_url，如 "/audio/xxxx.wav"
    */
   playAudio(audioUrl: string | null | undefined): HTMLAudioElement | null {
     if (!audioUrl) return null
@@ -91,5 +97,44 @@ export const chatApi = {
   async generateTts(text: string): Promise<string | null> {
     const response = await apiClient.post<{ audio_url: string | null }>('/tts', { text })
     return (response.data as any).audio_url ?? null
+  },
+
+  /**
+   * 预设参考音频路径（对应 GPT-SoVITS GET /set_refer_audio）
+   * 设置成功后，后续 TTS 合成无需重复传 ref_audio_path。
+   *
+   * @param referAudioPath GPT-SoVITS 服务器端绝对路径（参考音频 3~10 秒）
+   */
+  async setReferAudio(referAudioPath: string): Promise<TTSControlResponse> {
+    const response = await apiClient.post<TTSControlResponse>('/tts/set_refer_audio', {
+      refer_audio_path: referAudioPath
+    })
+    return response.data
+  },
+
+  /**
+   * 热切换 GPT 模型权重（对应 GPT-SoVITS GET /set_gpt_weights）
+   * 无需重启服务，直接切换角色的 GPT 模型（.ckpt 文件）。
+   *
+   * @param weightsPath .ckpt 文件的绝对或相对路径
+   */
+  async setGptWeights(weightsPath: string): Promise<TTSControlResponse> {
+    const response = await apiClient.post<TTSControlResponse>('/tts/set_gpt_weights', {
+      weights_path: weightsPath
+    })
+    return response.data
+  },
+
+  /**
+   * 热切换 SoVITS 模型权重（对应 GPT-SoVITS GET /set_sovits_weights）
+   * 无需重启服务，直接切换角色的 SoVITS 模型（.pth 文件）。
+   *
+   * @param weightsPath .pth 文件的绝对或相对路径
+   */
+  async setSovitsWeights(weightsPath: string): Promise<TTSControlResponse> {
+    const response = await apiClient.post<TTSControlResponse>('/tts/set_sovits_weights', {
+      weights_path: weightsPath
+    })
+    return response.data
   }
 }
