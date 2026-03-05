@@ -300,11 +300,11 @@ def _parse_entries_from_file(text: str) -> List[dict]:
         body = m.group(3)
 
         # 提取 **内容** 或 **摘要**
-        content_match = re.search(r'\*\*(?:内容|摘要)\*\*[：:]\s*(.+?)  \n', body)
+        content_match = re.search(r'\*\*(?:内容|摘要)\*\*[：:]\s*(.+?)(?=\n\*\*|\n\n---|  \n\*\*|\Z)', body, re.DOTALL)
         content = content_match.group(1).strip() if content_match else ""
 
         # 提取 **关键词**
-        kw_match = re.search(r'\*\*关键词\*\*[：:]\s*(.+?)  \n', body)
+        kw_match = re.search(r'\*\*关键词\*\*[：:]\s*(.+?)(?:  \n|\n)', body)
         kw_raw = kw_match.group(1).strip() if kw_match else ""
         keywords = [k.strip('`') for k in kw_raw.split() if k.strip('`')]
 

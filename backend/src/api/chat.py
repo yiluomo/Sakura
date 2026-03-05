@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from core.conversation import handle_message
 from memory.short_term import get_recent, force_archive
 from memory.long_term import save_memory, confirm_save_memory
+from memory.rebuild_index import rebuild_all_indexes, find_unindexed_entries
 from tts import tts_adapter
 from typing import Optional, Dict, Any
 
@@ -64,6 +65,52 @@ async def archive_memory(user_id: str = "依洛沐"):
         return {
             "status": "error",
             "msg": result["msg"]
+        }
+
+
+@router.post("/memory/rebuild")
+async def rebuild_memory_index():
+    """
+    重建记忆索引：
+    扫描 memory_store/ 目录下的所有 .md 文件，
+    将未建立数据库索引的记忆条目导入数据库。
+    
+    使用场景：
+    - 迁移后自动重建索引
+    - 手动编辑 .md 文件后重建索引
+    - 数据库索引丢失后恢复
+    """
+    try:
+        stats = await rebuild_all_indexes()
+        return {
+            "status": "ok",
+            "msg": f"索引重建完成",
+            "stats": stats
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "msg": f"索引重建失败: {str(e)}"
+        }
+
+
+@router.get("/memory/unindexed")
+async def get_unindexed_entries():
+    """
+    查找未建立索引的记忆条目
+    返回文件中存在但数据库中不存在的记忆列表
+    """
+    try:
+        unindexed = await find_unindexed_entries()
+        return {
+            "status": "ok",
+            "count": len(unindexed),
+            "entries": unindexed
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "msg": f"查询失败: {str(e)}"
         }
 
 
@@ -152,9 +199,10 @@ async def tts_set_sovits_weights(req: TTSSwitchWeightsRequest):
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
-    # 1. LLM 生成回复
+    # 1. LLM 生成回复（已包含情绪计算）
     result = await handle_message(req.user_id, req.message)
     reply  = result["reply"]
+    emotion = result["emotion"]  # 新增
 
     # 2. 并发调用 TTS（不阻塞主流程，失败时静默降级）
     audio_url = None
@@ -170,4 +218,5 @@ async def chat(req: ChatRequest):
         "reply":       reply,
         "memory_info": result["memory_info"],
         "audio_url":   audio_url,   # "/audio/xxxx.wav" 或 null
+        "emotion":     emotion       # 新增返回
     }

@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from contextlib import asynccontextmanager
 from config import DATABASE_URL
 from db.models import Base
 
@@ -24,5 +25,12 @@ async def init_db():
 
 async def get_db():
     """获取数据库会话（依赖注入用）"""
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+@asynccontextmanager
+async def get_db_session():
+    """获取数据库会话（用于 async with 的上下文管理器）"""
     async with AsyncSessionLocal() as session:
         yield session

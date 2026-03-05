@@ -96,7 +96,9 @@ async def save_or_update_long_term_memory(
     value: str,
     keywords: str = "",
     file_path: str = "",
-    importance: int = 1
+    importance: int = 1,
+    emotion_tag: str = "",
+    emotional_intensity: int = 0
 ):
     """
     若记录已存在则更新，否则新建。
@@ -107,12 +109,23 @@ async def save_or_update_long_term_memory(
         existing.value = value[:100] if value else ""
         existing.keywords = keywords
         existing.importance = importance
+        existing.emotion_tag = emotion_tag
+        existing.emotional_intensity = emotional_intensity
         existing.updated_at = datetime.now()
         await db.commit()
     else:
-        await save_long_term_memory(
-            db, memory_type, key, value, keywords, file_path, importance
+        memory = LongTermMemory(
+            memory_type=memory_type,
+            key=key,
+            value=value[:100] if value else "",
+            keywords=keywords,
+            file_path=file_path,
+            importance=importance,
+            emotion_tag=emotion_tag,
+            emotional_intensity=emotional_intensity
         )
+        db.add(memory)
+        await db.commit()
 
 async def get_long_term_memories(
     db: AsyncSession,
@@ -176,6 +189,37 @@ async def update_user_state(
         setattr(state, key, value)
     state.last_interaction = datetime.now()
     await db.commit()
+
+async def update_user_emotion(
+    db: AsyncSession,
+    user_id: str,
+    emotion_type: str,
+    mood: int,
+    energy: int
+):
+    """更新用户情绪状态"""
+    state = await get_or_create_user_state(db, user_id)
+    state.emotion_type = emotion_type
+    state.mood = mood
+    state.energy_level = energy
+    state.emotion_updated_at = datetime.now()
+    state.last_interaction = datetime.now()
+    await db.commit()
+
+async def get_user_emotion(
+    db: AsyncSession,
+    user_id: str
+) -> dict:
+    """获取用户当前情绪状态"""
+    state = await get_or_create_user_state(db, user_id)
+    return {
+        "emotion_type": state.emotion_type,
+        "mood": state.mood,
+        "energy": state.energy_level,
+        "affinity": state.affinity,
+        "last_interaction": state.last_interaction,
+        "emotion_updated_at": state.emotion_updated_at
+    }
 
 
 # ========== 对话压缩相关 ==========

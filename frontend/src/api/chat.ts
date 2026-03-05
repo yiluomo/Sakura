@@ -1,4 +1,5 @@
 import { apiClient } from './index'
+import type { EmotionState } from '@/types'
 
 export interface ChatRequest {
   user_id?: string
@@ -9,6 +10,7 @@ export interface ChatResponse {
   reply: string | null
   memory_info?: MemoryInfo | null
   audio_url?: string | null      // TTS 生成的音频路径，如 "/audio/xxxx.wav"
+  emotion?: EmotionState          // 情绪状态
 }
 
 export interface MemoryInfo {
@@ -77,6 +79,23 @@ export const chatApi = {
       params: { user_id: userId }
     })
     return response.data as { status: string; msg: string; archived_count: number }
+  },
+
+  /**
+   * 重建记忆索引
+   * 扫描 memory_store/ 目录，将未建立索引的记忆导入数据库
+   */
+  rebuildMemoryIndex: async (): Promise<{ status: string; msg: string; stats: any }> => {
+    const response = await apiClient.post<{ status: string; msg: string; stats: any }>('/memory/rebuild')
+    return response.data
+  },
+
+  /**
+   * 查找未建立索引的记忆条目
+   */
+  getUnindexedEntries: async (): Promise<{ status: string; count: number; entries: any[] }> => {
+    const response = await apiClient.get<{ status: string; count: number; entries: any[] }>('/memory/unindexed')
+    return response.data
   },
 
   /**

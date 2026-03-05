@@ -29,6 +29,15 @@
             :type="ttsAutoPlay ? 'primary' : 'default'"
           />
         </el-tooltip>
+        <!-- 回忆按钮 -->
+        <el-tooltip content="重建记忆索引" placement="bottom">
+          <el-button
+            @click="rebuildIndex"
+            :icon="Refresh"
+            :loading="isRebuilding"
+            circle
+          />
+        </el-tooltip>
         <el-button
           @click="archiveAndClear"
           :icon="Files"
@@ -69,7 +78,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Sunny, Moon, Files, ChatDotRound, Headset, Mute } from '@element-plus/icons-vue'
+import { Sunny, Moon, Files, ChatDotRound, Headset, Mute, Refresh } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import ErrorToast from '@/components/common/ErrorToast.vue'
@@ -89,6 +98,7 @@ const isLoading     = computed(() => chatStore.isLoading)
 const isDarkMode    = computed(() => uiStore.isDarkMode)
 const ttsAutoPlay   = computed(() => uiStore.ttsAutoPlay)
 const isArchiving   = ref(false)
+const isRebuilding  = ref(false)
 
 const toggleTheme        = () => uiStore.toggleDarkMode()
 const toggleTtsAutoPlay  = async () => {
@@ -261,6 +271,48 @@ const archiveAndClear = async () => {
     }
   } finally {
     isArchiving.value = false
+  }
+}
+
+const rebuildIndex = async () => {
+  try {
+    // 先查询未建立索引的条目数
+    const unindexedResult = await chatApi.getUnindexedEntries()
+    
+    if (unindexedResult.count === 0) {
+      ElMessage.info('所有记忆已建立索引，无需重建')
+      return
+    }
+
+    await ElMessageBox.confirm(
+      `发现 ${unindexedResult.count} 条未建立索引的记忆。\n\n是否重建索引？`,
+      '重建记忆索引',
+      {
+        confirmButtonText: '重建',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+
+    isRebuilding.value = true
+    const result = await chatApi.rebuildMemoryIndex()
+
+    if (result.status === 'ok') {
+      ElMessage.success({
+        message: `✅ ${result.msg}\n新建: ${result.stats.new} 条，更新: ${result.stats.updated} 条`,
+        duration: 5000
+      })
+    } else {
+      ElMessage.error(result.msg)
+    }
+  } catch (action) {
+    // 用户取消或发生错误
+    if (action !== 'cancel' && action !== 'close') {
+      const errorInfo = parseError(action)
+      uiStore.showError(errorInfo)
+    }
+  } finally {
+    isRebuilding.value = false
   }
 }
 </script>

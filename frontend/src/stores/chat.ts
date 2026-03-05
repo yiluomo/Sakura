@@ -54,12 +54,13 @@ export const useChatStore = defineStore('chat', () => {
 
       const response = await chatApi.sendMessage(content)
 
-      // 始终显示模型回复，并将 audio_url 一并存入消息对象
+      // 始终显示模型回复，并将 audio_url 和 emotion 一并存入消息对象
       if (response.reply) {
         addMessage({
           role: 'assistant',
           content: response.reply,
           audio_url: response.audio_url ?? null,
+          emotion: response.emotion,  // 新增：保存情绪状态
         })
       }
 

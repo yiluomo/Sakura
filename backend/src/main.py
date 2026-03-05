@@ -22,6 +22,17 @@ async def lifespan(app: FastAPI):
     # 原有启动逻辑：异步初始化数据库
     await init_db()
     print("[INFO] 数据库初始化完成")
+    
+    # TODO: 情绪系统定时任务（预留）
+    # 使用 APScheduler 每小时执行一次情绪衰减和精力恢复
+    # from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    # from core.emotion import apply_emotion_decay, recover_energy
+    # 
+    # scheduler = AsyncIOScheduler()
+    # scheduler.add_job(recover_energy, 'interval', hours=1, args=['依洛沐'])
+    # scheduler.start()
+    # print("[INFO] 情绪系统定时任务已启动")
+    
     yield  # 分割线，启动完成，开始处理请求
     # 如需服务关闭逻辑，写在这里（比如关闭数据库连接池、清理资源）
     # 示例：await close_db()

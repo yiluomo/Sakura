@@ -29,6 +29,8 @@ class LongTermMemory(Base):
     keywords    = Column(String(500), default="")               # LLM 提取的关键词，逗号分隔
     file_path   = Column(String(200), default="")               # 对应 .md 文件的相对路径，如 "memory_store/profile.md"
     importance  = Column(Integer, default=1)                    # 重要度 1~5
+    emotion_tag = Column(String(20), default="")                # 保存时的情绪状态（预留给情绪系统）
+    emotional_intensity = Column(Integer, default=0)            # 情感强度 0~5（预留给情绪系统）
     created_at  = Column(DateTime, default=datetime.now)
     updated_at  = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -43,6 +45,9 @@ class UserState(Base):
     
     user_id = Column(String(50), primary_key=True)
     affinity = Column(Integer, default=0)  # 亲密度
-    mood = Column(String(20), default='calm')  # 情绪
+    mood = Column(Integer, default=50)  # 情绪值 0-100，50为中性
+    emotion_type = Column(String(20), default='calm')  # 情绪类型：calm/happy/melancholy/nostalgic/guarded
+    energy_level = Column(Integer, default=80)  # 精力值 0-100
+    emotion_updated_at = Column(DateTime, default=datetime.now)  # 情绪更新时间
     last_interaction = Column(DateTime, default=datetime.now)
     total_messages = Column(Integer, default=0)

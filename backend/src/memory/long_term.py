@@ -131,9 +131,10 @@ async def confirm_save_memory(user_id: str, memory_info: Dict) -> bool:
     用户从前端确认后，正式写入记忆（文件 + 数据库索引）。
     
     流程：
-      1. LLM 提取关键词
-      2. 写入对应 .md 文件
-      3. 写入/更新数据库索引
+      1. 获取当前情绪状态（预留给情绪系统）
+      2. LLM 提取关键词
+      3. 写入对应 .md 文件
+      4. 写入/更新数据库索引（包含 emotion_tag 和 emotional_intensity）
     """
     memory_type = memory_info["memory_type"]
     key         = memory_info["key"]
@@ -143,25 +144,68 @@ async def confirm_save_memory(user_id: str, memory_info: Dict) -> bool:
     content = memory_info.get("new_value") or memory_info.get("value", "")
 
     try:
-        # 1. LLM 提取关键词（失败时降级为空列表）
+        # 1. 获取当前情绪状态（预留）
+        # TODO: 从数据库读取当前情绪状态
+        emotion_tag = "calm"  # 暂时默认值
+        emotional_intensity = _calculate_emotional_intensity(memory_type, importance)
+        
+        # 2. LLM 提取关键词（失败时降级为空列表）
         keywords = await extract_keywords(content)
         kw_str   = keywords_to_str(keywords)
 
-        # 2. 写入 .md 文件，返回实际写入的文件路径
+        # 3. 写入 .md 文件，返回实际写入的文件路径
         rel_path = await file_store.write_entry(memory_type, key, content, keywords, importance)
 
-        # 3. 写入/更新数据库索引
+        # 4. 写入/更新数据库索引（包含情绪标签）
         async with AsyncSessionLocal() as db:
             await save_or_update_long_term_memory(
-                db, memory_type, key, content, kw_str, rel_path, importance
+                db, memory_type, key, content, kw_str, rel_path, importance,
+                emotion_tag, emotional_intensity  # 新增参数
             )
 
-        print(f"✅ [long_term] 记忆已保存: [{memory_type}/{key}] 关键词: {kw_str}")
+        print(f"✅ [long_term] 记忆已保存: [{memory_type}/{key}] 关键词: {kw_str} 情绪: {emotion_tag}")
         return True
 
     except Exception as e:
         print(f"❌ [long_term] 记忆保存失败: {e}")
         return False
+
+
+def _calculate_emotional_intensity(memory_type: str, importance: int) -> int:
+    """
+    计算记忆的情感强度 (0-5)
+    
+    规则：
+    - 敏感话题（trauma 相关）：5
+    - 重要人物（family/friend）：4
+    - 个人档案（name/birthday）：3
+    - 日常偏好（hobby/dislike）：2
+    - 其他：根据 importance 映射
+    """
+    # 敏感话题类型（未来扩展）
+    sensitive_types = []  # 预留
+    
+    # 重要人物类型
+    important_person_types = ["family", "friend"]
+    
+    # 个人档案类型
+    profile_types = ["name", "birthday", "age", "occupation"]
+    
+    # 偏好类型
+    preference_types = ["hobby", "dislike", "experience"]
+    
+    if memory_type in sensitive_types:
+        return 5
+    elif memory_type in important_person_types:
+        return 4
+    elif memory_type in profile_types:
+        return 3
+    elif memory_type in preference_types:
+        return 2
+    else:
+        # 根据 importance 映射
+        return min(5, max(0, importance - 1))
+
 
 
 # ─────────────────────────────────────────────

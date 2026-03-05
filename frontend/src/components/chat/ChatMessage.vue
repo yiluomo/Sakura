@@ -29,6 +29,13 @@
         <span>{{ message.error }}</span>
       </div>
       
+      <!-- 情绪图标（仅 assistant 消息显示） -->
+      <div v-if="message.role === 'assistant' && message.emotion" class="emotion-indicator">
+        <el-tooltip :content="emotionTooltip" placement="top">
+          <span class="emotion-icon">{{ emotionIcon }}</span>
+        </el-tooltip>
+      </div>
+      
       <!-- 语音按钮 + 常规操作 -->
       <div class="message-actions">
         <!-- 常驻语音按钮：仅助手消息显示 -->
@@ -187,6 +194,33 @@ const copyMessage = async () => {
     ElMessage.error('复制失败')
   }
 }
+
+// 情绪图标映射
+const emotionIcon = computed(() => {
+  if (!props.message.emotion) return ''
+  const iconMap = {
+    calm: '🌸',
+    happy: '😊',
+    melancholy: '😔',
+    nostalgic: '🍃',
+    guarded: '⚔️'
+  }
+  return iconMap[props.message.emotion.type] || '🌸'
+})
+
+// 情绪提示文本
+const emotionTooltip = computed(() => {
+  if (!props.message.emotion) return ''
+  const { type, mood, energy } = props.message.emotion
+  const typeLabel = {
+    calm: '平静',
+    happy: '愉悦',
+    melancholy: '忧郁',
+    nostalgic: '怀念',
+    guarded: '警戒'
+  }[type] || '平静'
+  return `${typeLabel} | 心情 ${mood}/100 | 精力 ${energy}/100`
+})
 </script>
 
 <style lang="scss" scoped>
@@ -339,6 +373,25 @@ const copyMessage = async () => {
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50%       { transform: scale(1.12); }
+}
+
+/* 情绪指示器 */
+.emotion-indicator {
+  margin-top: 6px;
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+  
+  .emotion-icon {
+    font-size: 16px;
+    cursor: help;
+    display: inline-block;
+    transition: transform 0.2s ease;
+    
+    &:hover {
+      opacity: 1;
+      transform: scale(1.15);
+    }
+  }
 }
 
 .dark-theme {
