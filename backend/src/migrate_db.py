@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 from sqlalchemy import text
 from db.database import engine
-from db.models import Base
+from db.models import UserState
 
 # Windows 下修复 Event loop is closed 错误
 if sys.platform == 'win32':
@@ -34,26 +34,53 @@ async def migrate():
 
     async with engine.begin() as conn:
 
-        # ── 步骤 1：删除旧的 user_states 表 ───────────────────────
-        print("\n[1/4] 删除旧的 user_states 表...")
+        # ── 步骤 1：确保 user_states 表存在（不触碰其他表） ─────────
+        print("\n[1/4] 检查/创建 user_states 表...")
         try:
-            await conn.execute(text("DROP TABLE IF EXISTS user_states"))
-            print("     ✅ 旧的 user_states 表已删除")
+            await conn.run_sync(UserState.__table__.create, checkfirst=True)
+            print("     ✅ user_states 表已就绪")
         except Exception as e:
-            print(f"     ⚠️  删除 user_states 表时出错: {e}")
+            print(f"     ⚠️  创建 user_states 表时出错: {e}")
 
-        # ── 步骤 2：重建数据库表结构 ──────────────────────────────
-        print("\n[2/4] 按新结构创建表（保留原有记录表）...")
-        await conn.run_sync(Base.metadata.create_all)
-        print("     ✅ metadata.create_all 执行完毕（已有表自动跳过）")
+        # ── 步骤 2：就地迁移字段（仅 ALTER user_states，不删除数据） ──
+        print("\n[2/4] 就地迁移 user_states 字段...")
+        alter_statements = [
+            "ALTER TABLE user_states MODIFY COLUMN mood INT DEFAULT 50",
+            "ALTER TABLE user_states ADD COLUMN emotion_type VARCHAR(20) DEFAULT 'calm'",
+            "ALTER TABLE user_states ADD COLUMN energy_level INT DEFAULT 80",
+            "ALTER TABLE user_states ADD COLUMN emotion_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+            "ALTER TABLE user_states ADD COLUMN last_interaction DATETIME DEFAULT CURRENT_TIMESTAMP",
+        ]
 
-        # ── 步骤 3：验证 user_states 表结构 ────────────────────
+        for sql in alter_statements:
+            try:
+                await conn.execute(text(sql))
+                print(f"     ✅ {sql}")
+            except Exception as e:
+                # 已存在 / 类型已是 INT 等情况会报错，这里视为可接受
+                print(f"     ⏭️  跳过: {sql} ({e})")
+
+        # 回填历史空值，避免运行时出现 None
+        try:
+            await conn.execute(text(
+                "UPDATE user_states SET last_interaction = NOW() WHERE last_interaction IS NULL"
+            ))
+            await conn.execute(text(
+                "UPDATE user_states SET emotion_updated_at = NOW() WHERE emotion_updated_at IS NULL"
+            ))
+        except Exception as e:
+            print(f"     ⚠️  回填时间字段时出错: {e}")
+
+        # ── 步骤 3：验证 user_states 表结构 ─────────────────────
         print("\n[3/4] 验证 user_states 表结构...")
-        result = await conn.execute(text("DESCRIBE user_states"))
-        for row in result.fetchall():
-            print(f"       {row[0]:<25} {row[1]}")
+        try:
+            result = await conn.execute(text("DESCRIBE user_states"))
+            for row in result.fetchall():
+                print(f"       {row[0]:<25} {row[1]}")
+        except Exception as e:
+            print(f"     ⚠️  DESCRIBE user_states 失败: {e}")
 
-        # ── 步骤 4：初始化默认用户状态 ─────────────────────────
+        # ── 步骤 4：初始化默认用户状态（不覆盖已有数据） ──────────
         print("\n[4/4] 初始化默认用户状态...")
         try:
             await conn.execute(text("""
