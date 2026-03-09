@@ -82,8 +82,50 @@ export const chatApi = {
   },
 
   /**
+   * 导出记忆数据（用于备份或迁移）
+   * 返回 JSON 文件的 Blob 对象
+   */
+  exportMemory: async (userId: string = '依洛沐'): Promise<Blob> => {
+    const response = await apiClient.post(`/memory/export`, null, {
+      params: { user_id: userId },
+      responseType: 'blob'
+    })
+    return response.data
+  },
+
+  /**
+   * 导入记忆数据（用于迁移或恢复）
+   * @param file 导出的 JSON 文件
+   * @param userId 用户 ID
+   * @param rebuildVectors 是否重建向量索引
+   * @param skipExisting 是否跳过已存在的记录
+   */
+  importMemory: async (
+    file: File,
+    userId: string = '依洛沐',
+    rebuildVectors: boolean = true,
+    skipExisting: boolean = true
+  ): Promise<{ status: string; msg: string; imported_count: number; skipped_count: number; vector_count: number }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response = await apiClient.post(`/memory/import`, formData, {
+      params: {
+        user_id: userId,
+        rebuild_vectors: rebuildVectors,
+        skip_existing: skipExisting
+      },
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response.data
+  },
+
+  /**
    * 重建记忆索引
    * 扫描 memory_store/ 目录，将未建立索引的记忆导入数据库
+   * @deprecated 已被导出/导入功能替代，保留用于兼容性
    */
   rebuildMemoryIndex: async (): Promise<{ status: string; msg: string; stats: any }> => {
     const response = await apiClient.post<{ status: string; msg: string; stats: any }>('/memory/rebuild')
@@ -92,6 +134,7 @@ export const chatApi = {
 
   /**
    * 查找未建立索引的记忆条目
+   * @deprecated 已被导出/导入功能替代，保留用于兼容性
    */
   getUnindexedEntries: async (): Promise<{ status: string; count: number; entries: any[] }> => {
     const response = await apiClient.get<{ status: string; count: number; entries: any[] }>('/memory/unindexed')

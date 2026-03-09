@@ -5,7 +5,7 @@ from datetime import datetime
 Base = declarative_base()
 
 class Conversation(Base):
-    """对话历史表"""
+    """对话历史表（支持向量检索）"""
     __tablename__ = "conversations"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -14,8 +14,15 @@ class Conversation(Base):
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.now)
     
+    # 向量检索相关字段
+    vector_id = Column(String(100), default="")  # Qdrant 中的向量 ID
+    emotion_type = Column(String(20), default="calm")  # 保存时的情绪状态
+    importance = Column(Integer, default=3)  # 重要度 1-5
+    
     __table_args__ = (
         Index('idx_user_time', 'user_id', 'timestamp'),
+        Index('idx_vector_id', 'vector_id'),
+        Index('idx_importance', 'importance'),
     )
 
 class LongTermMemory(Base):

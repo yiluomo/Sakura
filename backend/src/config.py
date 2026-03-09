@@ -31,6 +31,16 @@ else:
 MEMORY_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─────────────────────────────────────────────────────────
+# 向量存储目录（FAISS索引文件）
+# ─────────────────────────────────────────────────────────
+_vector_store_env = os.environ.get("VECTOR_STORE_DIR")
+if _vector_store_env:
+    VECTOR_STORE_DIR = Path(_vector_store_env)
+else:
+    VECTOR_STORE_DIR = MEMORY_STORE_DIR / "vectors"  # 本地：Sakura/memory_store/vectors/
+VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
+
+# ─────────────────────────────────────────────────────────
 # 数据库配置
 # 优先读取环境变量 DATABASE_URL（Docker / CI 时注入）
 # 未设置则使用本地硬编码配置
@@ -51,10 +61,9 @@ LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API�
 LLM_API_BASE = "https://api.deepseek.com/v1"  # 或其他兼容的API地址
 LLM_MODEL = "deepseek-chat"  # 用于总结的模型
 
-# 短期记忆压缩配置
-MEMORY_COMPRESSION_THRESHOLD = 200  # 触发压缩的对话数量阈值
-MEMORY_COMPRESSION_BATCH_SIZE = 150  # 每次压缩的对话数量
-MEMORY_KEEP_RECENT_COUNT = 50  # 压缩后保留的最近对话数量
+# 记忆导出/导入配置（用于备份和迁移）
+MEMORY_EXPORT_DIR = SAKURA_ROOT / "memory_exports"  # 导出文件存储目录
+MEMORY_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─────────────────────────────────────────────────────────
 # TTS 语音合成配置
@@ -106,3 +115,22 @@ AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # 缓存最大文件数，超出时自动删除最旧的文件
 AUDIO_CACHE_MAX_FILES = int(os.environ.get("AUDIO_CACHE_MAX_FILES", "200"))
+
+# ─────────────────────────────────────────────────────────
+# RAG 向量检索配置（FAISS）
+# ─────────────────────────────────────────────────────────
+
+# Embedding 模型配置（使用 OpenAI API 兼容接口）
+EMBEDDING_API_KEY = os.environ.get("EMBEDDING_API_KEY", LLM_API_KEY)  # 默认使用 LLM 的 key
+EMBEDDING_API_BASE = os.environ.get("EMBEDDING_API_BASE", LLM_API_BASE)
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")  # 或 deepseek-embedding
+EMBEDDING_DIMENSION = int(os.environ.get("EMBEDDING_DIMENSION", "1536"))  # text-embedding-3-small 的维度
+
+# 向量检索配置
+VECTOR_SEARCH_LIMIT = int(os.environ.get("VECTOR_SEARCH_LIMIT", "20"))  # 向量检索返回数量
+VECTOR_SEARCH_SCORE_THRESHOLD = float(os.environ.get("VECTOR_SEARCH_SCORE_THRESHOLD", "0.5"))  # 相似度阈值
+
+# 记忆召回配置
+RECALL_SHORT_TERM_LIMIT = int(os.environ.get("RECALL_SHORT_TERM_LIMIT", "6"))  # 短期记忆条数
+RECALL_VECTOR_LIMIT = int(os.environ.get("RECALL_VECTOR_LIMIT", "5"))  # 向量检索记忆条数
+RECALL_LONG_TERM_LIMIT = int(os.environ.get("RECALL_LONG_TERM_LIMIT", "5"))  # 长期记忆条数

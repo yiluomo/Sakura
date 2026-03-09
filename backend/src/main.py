@@ -1,5 +1,14 @@
 import sys
 import io
+from pathlib import Path
+
+# 移除 sys.path 中的 GPT-SoVITS 路径，避免模块冲突
+sys.path = [p for p in sys.path if 'GPT-SoVITS' not in p]
+
+# 确保当前目录在 sys.path 最前面
+current_dir = Path(__file__).parent
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
 
 # 强制设置标准输出为 UTF-8，解决 Windows 下重定向到文件时的编码错误
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -22,6 +31,13 @@ async def lifespan(app: FastAPI):
     # 原有启动逻辑：异步初始化数据库
     await init_db()
     print("[INFO] 数据库初始化完成")
+    
+    # 初始化 Qdrant 向量数据库
+    from memory.vector_store import init_collection
+    if init_collection():
+        print("[INFO] Qdrant 向量数据库初始化完成")
+    else:
+        print("[WARNING] Qdrant 向量数据库初始化失败，向量检索功能将不可用")
     
     # TODO: 情绪系统定时任务（预留）
     # 使用 APScheduler 每小时执行一次情绪衰减和精力恢复

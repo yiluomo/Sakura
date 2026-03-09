@@ -28,18 +28,30 @@ def build_prompt(
     energy: int = 80
 ) -> str:
     """
-    构建提示词，注入情绪状态
+    构建提示词，注入情绪状态和记忆
     
     参数：
         person: 人格描述
-        memory: 记忆上下文
+        memory: 记忆上下文（包含 short_term, vector_memory, long_term）
         user_message: 用户消息
         emotion_type: 情绪类型
         mood: 心情值 0-100
         energy: 精力值 0-100
     """
     short_term = "\n".join([f"{m['role']}: {m['content']}" for m in memory["short_term"]])
-    long_term  = memory["long_term"]
+    long_term = memory["long_term"]
+    
+    # 向量记忆（语义相关的对话）
+    vector_memory = memory.get("vector_memory", [])
+    vector_memory_text = ""
+    if vector_memory:
+        lines = ["【相关回忆】"]
+        for vm in vector_memory:
+            # 格式：[时间] 角色: 内容
+            timestamp = vm["timestamp"][:10]  # 只取日期部分
+            role_name = "你" if vm["role"] == "assistant" else "对方"
+            lines.append(f"- [{timestamp}] {role_name}: {vm['content'][:50]}...")
+        vector_memory_text = "\n".join(lines) + "\n"
 
     # 长期记忆存在时才注入，避免空段落干扰
     long_term_section = f"【关于此人你记得的事】\n{long_term}\n" if long_term.strip() else ""
@@ -56,7 +68,7 @@ def build_prompt(
 
     return f"""{person}
 
-{long_term_section}【近期对话记录】
+{long_term_section}{vector_memory_text}【近期对话记录】
 {short_term}
 
 【用户当前消息】

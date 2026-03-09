@@ -1,14 +1,14 @@
 import asyncio
 import random
 from memory.recall import recall_context
+from memory.vector_store import add_conversation_vector
 from core.person import build_person
 from core.prompt import build_prompt
 from core.emotion import update_emotion_state, detect_sensitive_topics
 from llm.adapter import generate
-from memory.short_term import save_turn
 from memory.long_term import check_memory_trigger
-from db.database import get_db_session
-from db.crud import get_user_emotion
+from db.database import get_db_session, AsyncSessionLocal
+from db.crud import get_user_emotion, save_conversation, update_conversation_vector_id
 from datetime import datetime
 from typing import Dict, Any
 
@@ -91,8 +91,8 @@ async def handle_message(user_id: str, message: str) -> Dict[str, Any]:
     # 3. 检查是否需要主动问候
     greeting = await check_greeting(user_id)
     
-    # 4. 回忆上下文
-    context = await recall_context(user_id)
+    # 4. 回忆上下文（传入当前消息用于向量检索）
+    context = await recall_context(user_id, current_message=message)
     
     # 5. 人格
     person = build_person(user_id)
@@ -114,14 +114,76 @@ async def handle_message(user_id: str, message: str) -> Dict[str, Any]:
     if greeting:
         reply = greeting + reply
     
-    # 9. 保存到短期记忆
-    await save_turn(user_id, message, reply)
+    # 9. 保存到数据库并生成向量
+    async with AsyncSessionLocal() as db:
+        # 保存用户消息
+        user_conv_id = await save_conversation(
+            db, user_id, "user", message,
+            emotion_type=emotion_state["emotion_type"],
+            importance=3  # 默认重要度
+        )
+        
+        # 保存助手回复
+        assistant_conv_id = await save_conversation(
+            db, user_id, "assistant", reply,
+            emotion_type=emotion_state["emotion_type"],
+            importance=3
+        )
     
-    # 10. 检查长期记忆触发
+    # 10. 异步生成向量（不阻塞主流程）
+    asyncio.create_task(_add_vectors_async(
+        user_id, user_conv_id, message, assistant_conv_id, reply, emotion_state
+    ))
+    
+    # 11. 检查长期记忆触发
     memory_info = await check_memory_trigger(user_id, message)
     
     return {
         "reply": reply,
         "memory_info": memory_info,
-        "emotion": emotion_state  # 新增返回
+        "emotion": emotion_state
     }
+
+
+async def _add_vectors_async(
+    user_id: str,
+    user_conv_id: int,
+    user_message: str,
+    assistant_conv_id: int,
+    assistant_reply: str,
+    emotion_state: dict
+):
+    """异步添加向量（不阻塞主流程）"""
+    try:
+        # 为用户消息生成向量
+        user_vector_id = await add_conversation_vector(
+            user_id=user_id,
+            conversation_id=user_conv_id,
+            role="user",
+            content=user_message,
+            emotion_type=emotion_state["emotion_type"],
+            importance=3
+        )
+        
+        # 为助手回复生成向量
+        assistant_vector_id = await add_conversation_vector(
+            user_id=user_id,
+            conversation_id=assistant_conv_id,
+            role="assistant",
+            content=assistant_reply,
+            emotion_type=emotion_state["emotion_type"],
+            importance=3
+        )
+        
+        # 更新数据库中的 vector_id
+        async with AsyncSessionLocal() as db:
+            if user_vector_id:
+                await update_conversation_vector_id(db, user_conv_id, user_vector_id)
+            if assistant_vector_id:
+                await update_conversation_vector_id(db, assistant_conv_id, assistant_vector_id)
+        
+        print(f"✅ 向量已生成: user={user_vector_id}, assistant={assistant_vector_id}")
+        
+    except Exception as e:
+        print(f"❌ 向量生成失败: {e}")
+        # 向量生成失败不影响主流程，对话已保存在数据库中

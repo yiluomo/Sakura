@@ -1,12 +1,15 @@
 import asyncio
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from core.conversation import handle_message
-from memory.short_term import get_recent, force_archive
+from memory.short_term import get_recent, export_memories, import_memories
 from memory.long_term import save_memory, confirm_save_memory
-from memory.rebuild_index import rebuild_all_indexes, find_unindexed_entries
 from tts import tts_adapter
 from typing import Optional, Dict, Any
+from pathlib import Path
+import tempfile
+import shutil
 
 router = APIRouter()
 
@@ -25,6 +28,12 @@ class MemoryConfirmRequest(BaseModel):
     user_id: str = "依洛沐"
     memory_info: Dict[str, Any]
     confirmed: bool
+
+
+class MemoryImportRequest(BaseModel):
+    user_id: str = "依洛沐"
+    rebuild_vectors: bool = True
+    skip_existing: bool = True
 
 
 class TTSRequest(BaseModel):
@@ -46,21 +55,30 @@ async def get_history(user_id: str = "依洛沐"):
     return await get_recent(user_id)
 
 
-@router.post("/memory/archive")
-async def archive_memory(user_id: str = "依洛沐"):
+@router.post("/memory/export")
+async def export_memory(user_id: str = "依洛沐"):
     """
-    手动触发短期记忆归档：
-    将当前全部短期记忆压缩总结后写入长期记忆文件和数据库索引，
-    然后清空数据库中的短期对话记录。
-    不受对话数量阈值限制，随时可手动触发。
+    导出用户的所有记忆数据（用于备份或迁移）
+    
+    导出内容：
+    - MySQL 中的所有对话记录（包含情绪、重要度等元数据）
+    - 导出时间戳和统计信息
+    
+    注意：
+    - Qdrant 向量数据不导出（可以从 MySQL 重建）
+    - memory_store/*.md 文件需要手动备份
+    
+    返回：JSON 文件下载
     """
-    result = await force_archive(user_id)
+    result = await export_memories(user_id)
+    
     if result["success"]:
-        return {
-            "status": "ok",
-            "msg": result["msg"],
-            "archived_count": result.get("archived_count", 0)
-        }
+        file_path = result["file_path"]
+        return FileResponse(
+            path=file_path,
+            filename=Path(file_path).name,
+            media_type="application/json"
+        )
     else:
         return {
             "status": "error",
@@ -68,50 +86,63 @@ async def archive_memory(user_id: str = "依洛沐"):
         }
 
 
-@router.post("/memory/rebuild")
-async def rebuild_memory_index():
+@router.post("/memory/import")
+async def import_memory(
+    file: UploadFile = File(...),
+    user_id: str = "依洛沐",
+    rebuild_vectors: bool = True,
+    skip_existing: bool = True
+):
     """
-    重建记忆索引：
-    扫描 memory_store/ 目录下的所有 .md 文件，
-    将未建立数据库索引的记忆条目导入数据库。
+    导入记忆数据（用于迁移或恢复）
     
-    使用场景：
-    - 迁移后自动重建索引
-    - 手动编辑 .md 文件后重建索引
-    - 数据库索引丢失后恢复
+    导入流程：
+    1. 上传之前导出的 JSON 文件
+    2. 将对话记录导入 MySQL
+    3. 可选：重建 Qdrant 向量索引
+    
+    参数：
+    - file: 导出的 JSON 文件
+    - user_id: 用户 ID
+    - rebuild_vectors: 是否重建向量索引（默认 True）
+    - skip_existing: 是否跳过已存在的记录（默认 True）
     """
+    # 保存上传的文件到临时目录
+    temp_dir = tempfile.mkdtemp()
+    temp_file = Path(temp_dir) / file.filename
+    
     try:
-        stats = await rebuild_all_indexes()
-        return {
-            "status": "ok",
-            "msg": f"索引重建完成",
-            "stats": stats
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "msg": f"索引重建失败: {str(e)}"
-        }
-
-
-@router.get("/memory/unindexed")
-async def get_unindexed_entries():
-    """
-    查找未建立索引的记忆条目
-    返回文件中存在但数据库中不存在的记忆列表
-    """
-    try:
-        unindexed = await find_unindexed_entries()
-        return {
-            "status": "ok",
-            "count": len(unindexed),
-            "entries": unindexed
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "msg": f"查询失败: {str(e)}"
-        }
+        with open(temp_file, 'wb') as f:
+            shutil.copyfileobj(file.file, f)
+        
+        # 执行导入
+        result = await import_memories(
+            user_id=user_id,
+            import_path=str(temp_file),
+            rebuild_vectors=rebuild_vectors,
+            skip_existing=skip_existing
+        )
+        
+        if result["success"]:
+            return {
+                "status": "ok",
+                "msg": result["msg"],
+                "imported_count": result["imported_count"],
+                "skipped_count": result["skipped_count"],
+                "vector_count": result.get("vector_count", 0)
+            }
+        else:
+            return {
+                "status": "error",
+                "msg": result["msg"]
+            }
+    
+    finally:
+        # 清理临时文件
+        try:
+            shutil.rmtree(temp_dir)
+        except Exception as e:
+            print(f"⚠️  清理临时文件失败: {e}")
 
 
 @router.post("/memory")

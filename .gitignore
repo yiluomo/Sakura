@@ -87,5 +87,13 @@ docs/.doctrees/
 # 记忆内容本地保存不带走
 memory_store/
 
+# 记忆导出文件（备份数据，不提交）
+memory_exports/
+
 # TTS 音频缓存（本地生成，不提交）
 audio_cache/
+
+# Qdrant 相关（已废弃，使用 FAISS）
+qdrant/
+qdrant_storage/
+qdrant-tools/

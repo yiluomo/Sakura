@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────
 # Sakura docker-compose.yml
-# 服务编排：mysql + backend + frontend
+# 服务编排：mysql + qdrant + backend + frontend
 #
 # 使用方式：
 #   docker compose up -d          # 启动全部服务
@@ -21,9 +21,9 @@ services:
       MYSQL_DATABASE: sakura_db
       MYSQL_CHARSET: utf8mb4
     volumes:
-      - mysql_data:/var/lib/mysql        # 持久化数据库数据
+      - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306"                      # 可选，暴露到宿主机（方便本地 MySQL 客户端连接）
+      - "3306:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pYaeSakura"]
       interval: 10s
@@ -42,34 +42,17 @@ services:
     container_name: sakura_backend
     restart: unless-stopped
     environment:
-      # 数据库连接（指向 mysql 服务名，而非 localhost）
       DATABASE_URL: "mysql+aiomysql://root:YaeSakura@mysql:3306/sakura_db"
-      # 记忆文件存储路径（容器内挂载点）
       MEMORY_STORE_DIR: "/memory_store"
-      # ── GPT-SoVITS TTS 配置（可按需覆盖，留空则用 config.py 默认值）──
-      # GPT_SOVITS_BASE_URL: "http://host.docker.internal:9880"  # Docker 内访问宿主机 TTS 服务
-      # GPT_SOVITS_REF_AUDIO_PATH: ""   # 参考音频绝对路径（宿主机路径，需挂载或网络共享）
-      # GPT_SOVITS_PROMPT_TEXT: ""      # 参考音频对应台词
-      # GPT_SOVITS_PROMPT_LANG: "zh"    # 参考音频语言
-      # GPT_SOVITS_TEXT_LANG: "zh"      # 合成文本语言
-      # GPT_SOVITS_SPEED_FACTOR: "1.0"  # 语速倍率（0.5~2.0）
-      # GPT_SOVITS_MEDIA_TYPE: "wav"    # 输出格式：wav / ogg / aac / raw
-      # GPT_SOVITS_TOP_K: "15"          # 采样 top-k
-      # GPT_SOVITS_TOP_P: "1.0"         # 采样 top-p
-      # GPT_SOVITS_TEMPERATURE: "1.0"   # 采样温度
-      # GPT_SOVITS_SEED: "-1"           # 随机种子（-1=随机，固定值=可复现）
-      # GPT_SOVITS_BATCH_SIZE: "1"      # 批处理大小
-      # GPT_SOVITS_SAMPLE_STEPS: "32"   # V4 模型采样步数（越高越慢但质量更好）
-      # GPT_SOVITS_GPT_WEIGHTS: ""      # GPT 模型权重路径（.ckpt），留空用服务默认
-      # GPT_SOVITS_SOVITS_WEIGHTS: ""   # SoVITS 模型权重路径（.pth），留空用服务默认
+      VECTOR_STORE_DIR: "/memory_store/vectors"
     volumes:
-      - memory_store:/memory_store       # 长期记忆 .md 文件持久化
-      - ./backend/src/logs:/app/logs     # 日志持久化（确保宿主机目录存在）
+      - memory_store:/memory_store
+      - ./backend/src/logs:/app/logs
     ports:
-      - "8000:8000"                      # 可选，暴露给宿主机直接调试
+      - "8000:8000"
     depends_on:
       mysql:
-        condition: service_healthy       # 等 MySQL 健康检查通过才启动
+        condition: service_healthy
     networks:
       - sakura_net
 
@@ -82,7 +65,7 @@ services:
     container_name: sakura_frontend
     restart: unless-stopped
     ports:
-      - "80:80"                          # 对外暴露，访问 http://localhost
+      - "80:80"
     depends_on:
       - backend
     networks:
@@ -92,9 +75,9 @@ services:
 # ── 持久化卷 ─────────────────────────────────────────────
 volumes:
   mysql_data:
-    name: sakura_mysql_data              # 数据库数据，不随 compose down 删除
+    name: sakura_mysql_data
   memory_store:
-    name: sakura_memory_store            # 长期记忆文件，不随 compose down 删除
+    name: sakura_memory_store
 
 
 # ── 内部网络 ─────────────────────────────────────────────

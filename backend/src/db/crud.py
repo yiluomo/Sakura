@@ -11,12 +11,34 @@ async def save_conversation(
     db: AsyncSession,
     user_id: str,
     role: str,
-    content: str
-):
-    """保存一条对话"""
-    conv = Conversation(user_id=user_id, role=role, content=content)
+    content: str,
+    vector_id: str = "",
+    emotion_type: str = "calm",
+    importance: int = 3,
+    timestamp: Optional[datetime] = None
+) -> int:
+    """
+    保存一条对话
+    
+    Args:
+        timestamp: 可选的时间戳，用于导入历史数据（默认使用当前时间）
+    
+    Returns:
+        conversation_id: 对话 ID
+    """
+    conv = Conversation(
+        user_id=user_id,
+        role=role,
+        content=content,
+        vector_id=vector_id,
+        emotion_type=emotion_type,
+        importance=importance,
+        timestamp=timestamp or datetime.now()
+    )
     db.add(conv)
     await db.commit()
+    await db.refresh(conv)
+    return conv.id
 
 async def get_recent_conversations(
     db: AsyncSession,
@@ -32,9 +54,57 @@ async def get_recent_conversations(
     )
     conversations = result.scalars().all()
     return [
-        {"role": c.role, "content": c.content, "timestamp": c.timestamp.isoformat()}
+        {
+            "id": c.id,
+            "role": c.role,
+            "content": c.content,
+            "timestamp": c.timestamp.isoformat(),
+            "vector_id": c.vector_id,
+            "emotion_type": c.emotion_type,
+            "importance": c.importance
+        }
         for c in reversed(conversations)
     ]
+
+
+async def get_conversations_by_ids(
+    db: AsyncSession,
+    conversation_ids: List[int]
+):
+    """根据 ID 列表获取对话"""
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.id.in_(conversation_ids))
+        .order_by(Conversation.timestamp.asc())
+    )
+    conversations = result.scalars().all()
+    return [
+        {
+            "id": c.id,
+            "role": c.role,
+            "content": c.content,
+            "timestamp": c.timestamp.isoformat(),
+            "vector_id": c.vector_id,
+            "emotion_type": c.emotion_type,
+            "importance": c.importance
+        }
+        for c in conversations
+    ]
+
+
+async def update_conversation_vector_id(
+    db: AsyncSession,
+    conversation_id: int,
+    vector_id: str
+):
+    """更新对话的 vector_id"""
+    result = await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id)
+    )
+    conv = result.scalar_one_or_none()
+    if conv:
+        conv.vector_id = vector_id
+        await db.commit()
 
 
 # ========== 长期记忆索引 ==========
