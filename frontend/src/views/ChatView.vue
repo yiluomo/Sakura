@@ -67,19 +67,34 @@
     </div>
     
     <div class="chat-container">
+      <!-- 顶部加载状态提示 -->
+      <div v-if="isLoading" class="typing-status">
+        <div class="typing-content">
+          <el-avatar :src="sakuraAvatar" :size="24" />
+          <span class="typing-text">樱正在书写回复</span>
+          <div class="typing-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </div>
+      </div>
+      
       <div class="messages-container" ref="messagesContainer">
         <div v-if="messages.length === 0" class="empty-state">
           <el-icon class="empty-icon"><ChatDotRound /></el-icon>
           <p>开始你的第一次对话吧！</p>
         </div>
         
-        <ChatMessage
-          v-for="message in messages"
-          :key="message.id"
-          :message="message"
-          @retry="retryMessage"
-          @delete="deleteMessage"
-        />
+        <TransitionGroup name="message" tag="div" class="messages-list">
+          <ChatMessage
+            v-for="message in messages"
+            :key="message.id"
+            :message="message"
+            @retry="retryMessage"
+            @delete="deleteMessage"
+          />
+        </TransitionGroup>
       </div>
       
       <div class="input-container">
@@ -105,6 +120,7 @@ import { useUIStore } from '@/stores/ui'
 import { chatApi } from '@/api/chat'
 import { parseError } from '@/utils/errorHandler'
 import type { MemoryInfo } from '@/api/chat'
+import sakuraAvatar from '@/asserts/img/sakura_avatar.jpeg'
 
 const chatStore = useChatStore()
 const uiStore = useUIStore()
@@ -140,9 +156,25 @@ const toggleTtsAutoPlay  = async () => {
 
 // 监听消息变化，自动滚动到底部
 watch(
-  () => messages.value.length,
+  () => messages.value,
   () => {
-    scrollToBottom()
+    // 使用 nextTick 确保DOM更新完成后再滚动
+    nextTick(() => {
+      scrollToBottom()
+    })
+  },
+  { deep: true } // 深度监听，以便捕获消息内容的变化
+)
+
+// 监听加载状态变化，确保加载动画出现时也滚动到底部
+watch(
+  () => isLoading.value,
+  (newLoading) => {
+    if (newLoading) {
+      nextTick(() => {
+        scrollToBottom()
+      })
+    }
   }
 )
 
@@ -156,7 +188,19 @@ onMounted(() => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      const container = messagesContainer.value
+      const targetScrollTop = container.scrollHeight - container.clientHeight
+      
+      // 如果已经在底部附近，直接滚动
+      if (Math.abs(container.scrollTop - targetScrollTop) < 50) {
+        container.scrollTop = targetScrollTop
+      } else {
+        // 平滑滚动到底部
+        container.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
+        })
+      }
     }
   })
 }
@@ -233,6 +277,10 @@ const handleSendMessage = async (content: string) => {
     if (response.memory_info) {
       await handleMemoryConfirm(response.memory_info)
     }
+    
+    // 确保新消息出现后滚动到底部
+    await nextTick()
+    scrollToBottom()
   } catch (error) {
     // 使用错误处理工具解析错误
     const errorInfo = parseError(error)
@@ -380,48 +428,6 @@ const handleFileSelect = async (event: Event) => {
     if (target) target.value = ''
   }
 }
-
-const rebuildIndex = async () => {
-  try {
-    // 先查询未建立索引的条目数
-    const unindexedResult = await chatApi.getUnindexedEntries()
-    
-    if (unindexedResult.count === 0) {
-      ElMessage.info('所有记忆已建立索引，无需重建')
-      return
-    }
-
-    await ElMessageBox.confirm(
-      `发现 ${unindexedResult.count} 条未建立索引的记忆。\n\n是否重建索引？`,
-      '重建记忆索引',
-      {
-        confirmButtonText: '重建',
-        cancelButtonText: '取消',
-        type: 'info',
-      }
-    )
-
-    isRebuilding.value = true
-    const result = await chatApi.rebuildMemoryIndex()
-
-    if (result.status === 'ok') {
-      ElMessage.success({
-        message: `✅ ${result.msg}\n新建: ${result.stats.new} 条，更新: ${result.stats.updated} 条`,
-        duration: 5000
-      })
-    } else {
-      ElMessage.error(result.msg)
-    }
-  } catch (action) {
-    // 用户取消或发生错误
-    if (action !== 'cancel' && action !== 'close') {
-      const errorInfo = parseError(action)
-      uiStore.showError(errorInfo)
-    }
-  } finally {
-    isRebuilding.value = false
-  }
-}
 </script>
 
 <style lang="scss" scoped>
@@ -486,6 +492,79 @@ const rebuildIndex = async () => {
   min-height: 0;
 }
 
+/* 顶部加载状态提示 */
+.typing-status {
+  width: 100%;
+  max-width: 1200px;
+  padding: 8px 24px;
+  background-color: rgba(243, 100, 140, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(243, 100, 140, 0.2);
+  animation: slideInFromTop 0.3s ease-out;
+}
+
+.typing-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.typing-text {
+  color: #f3648c;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.typing-dots .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #f3648c;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes slideInFromTop {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  30% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
 .messages-container {
   flex: 1;
   overflow-y: auto;
@@ -503,6 +582,12 @@ const rebuildIndex = async () => {
   
   /* IE and Edge */
   -ms-overflow-style: none;
+}
+
+.messages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .empty-state {
@@ -544,6 +629,11 @@ const rebuildIndex = async () => {
     background-color: var(--el-bg-color);
     border-color: var(--el-border-color);
   }
+
+  .typing-status {
+    background-color: rgba(243, 100, 140, 0.15);
+    border-bottom-color: rgba(243, 100, 140, 0.3);
+  }
 }
 
 @media (max-width: 768px) {
@@ -562,5 +652,28 @@ const rebuildIndex = async () => {
   .messages-container {
     padding: 12px 16px;
   }
+}
+
+/* 消息过渡动画 */
+.message-enter-active {
+  transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.message-leave-active {
+  transition: all 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19);
+}
+
+.message-enter-from {
+  opacity: 0;
+  transform: translateY(30px) scale(0.95);
+}
+
+.message-leave-to {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.message-move {
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 </style>

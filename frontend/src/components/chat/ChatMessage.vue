@@ -14,6 +14,18 @@
       <div class="message-body">
         <div class="message-text" :class="{ 'text-collapsed': isCollapsed && isLongMessage }">
           {{ message.content }}
+          <!-- 流式输出时的光标指示器 -->
+          <span v-if="message.isStreaming" class="streaming-cursor">|</span>
+        </div>
+        
+        <!-- 流式输出时显示"正在书写"提示（仅在有内容时显示） -->
+        <div v-if="message.isStreaming && message.content" class="streaming-indicator">
+          <span class="streaming-text">樱正在书写回复</span>
+          <div class="typing-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
         </div>
         
         <div v-if="isLongMessage" class="message-toggle" @click="isCollapsed = !isCollapsed">
@@ -231,13 +243,52 @@ const emotionTooltip = computed(() => {
   border-radius: 8px;
   margin-bottom: 8px;
   transition: all 0.2s ease;
+  animation: messageSlideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
   &.message-user {
     flex-direction: row-reverse;
+    animation: messageSlideInRight 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
     .message-content {
       align-items: flex-end;
     }
+  }
+
+  &.message-sakura {
+    animation: messageSlideInLeft 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+}
+
+@keyframes messageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes messageSlideInLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px) translateY(15px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1);
+  }
+}
+
+@keyframes messageSlideInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(20px) translateY(15px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1);
   }
 }
 
@@ -297,6 +348,73 @@ const emotionTooltip = computed(() => {
       height: 20px;
       background: linear-gradient(transparent, var(--el-bg-color));
     }
+  }
+}
+
+/* 流式输出光标 */
+.streaming-cursor {
+  display: inline-block;
+  animation: blink 1.2s infinite;
+  color: #f3648c;
+  font-weight: bold;
+  margin-left: 1px;
+  font-size: 1.1em;
+}
+
+@keyframes blink {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* 流式输出指示器 */
+.streaming-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.streaming-text {
+  color: #f3648c;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: #f3648c;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  30% {
+    transform: scale(1.2);
+    opacity: 1;
   }
 }
 

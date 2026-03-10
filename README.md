@@ -22,6 +22,8 @@ docker compose logs -f backend
 ```bash
 # 1. 激活环境
 conda activate sakura
+cd backend
+pip install -r requirements.txt
 
 # 2. 数据库迁移（首次或升级时）
 cd backend/src

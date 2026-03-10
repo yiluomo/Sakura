@@ -78,7 +78,7 @@ export const chatApi = {
     const response = await apiClient.post(`/memory/archive`, null, {
       params: { user_id: userId, role: role }
     })
-    return response.data
+    return response.data as { success: boolean; message: string; data?: any; error_code?: string }
   },
 
   /**
@@ -90,7 +90,7 @@ export const chatApi = {
       params: { user_id: userId },
       responseType: 'blob'
     })
-    return response.data
+    return response.data as Blob
   },
 
   /**
@@ -119,7 +119,7 @@ export const chatApi = {
         'Content-Type': 'multipart/form-data'
       }
     })
-    return response.data
+    return response.data as { status: string; msg: string; imported_count: number; skipped_count: number; vector_count: number }
   },
 
   /**
