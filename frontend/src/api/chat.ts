@@ -74,11 +74,11 @@ export const chatApi = {
     return response.data
   },
 
-  archiveMemory: async (userId: string = '依洛沐'): Promise<{ status: string; msg: string; archived_count: number }> => {
+  archiveMemory: async (userId: string = '依洛沐', role: string = 'default'): Promise<{ success: boolean; message: string; data?: any; error_code?: string }> => {
     const response = await apiClient.post(`/memory/archive`, null, {
-      params: { user_id: userId }
+      params: { user_id: userId, role: role }
     })
-    return response.data as { status: string; msg: string; archived_count: number }
+    return response.data
   },
 
   /**
@@ -119,25 +119,6 @@ export const chatApi = {
         'Content-Type': 'multipart/form-data'
       }
     })
-    return response.data
-  },
-
-  /**
-   * 重建记忆索引
-   * 扫描 memory_store/ 目录，将未建立索引的记忆导入数据库
-   * @deprecated 已被导出/导入功能替代，保留用于兼容性
-   */
-  rebuildMemoryIndex: async (): Promise<{ status: string; msg: string; stats: any }> => {
-    const response = await apiClient.post<{ status: string; msg: string; stats: any }>('/memory/rebuild')
-    return response.data
-  },
-
-  /**
-   * 查找未建立索引的记忆条目
-   * @deprecated 已被导出/导入功能替代，保留用于兼容性
-   */
-  getUnindexedEntries: async (): Promise<{ status: string; count: number; entries: any[] }> => {
-    const response = await apiClient.get<{ status: string; count: number; entries: any[] }>('/memory/unindexed')
     return response.data
   },
 

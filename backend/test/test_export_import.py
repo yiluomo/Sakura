@@ -21,9 +21,9 @@ async def test_export_import():
     print("\n1. 创建测试数据...")
     async with AsyncSessionLocal() as db:
         await save_conversation(db, user_id, "user", "你好", emotion_type="calm", importance=3)
-        await save_conversation(db, user_id, "assistant", "你好！", emotion_type="calm", importance=3)
+        await save_conversation(db, user_id, "sakura", "你好！", emotion_type="calm", importance=3)
         await save_conversation(db, user_id, "user", "今天天气不错", emotion_type="happy", importance=2)
-        await save_conversation(db, user_id, "assistant", "是的，很适合出去走走", emotion_type="happy", importance=2)
+        await save_conversation(db, user_id, "sakura", "是的，很适合出去走走", emotion_type="happy", importance=2)
     
     print("✅ 已创建 4 条测试对话")
     

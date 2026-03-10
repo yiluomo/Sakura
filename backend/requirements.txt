@@ -13,3 +13,5 @@ aiofiles
 faiss-cpu
 numpy
 openai>=1.0.0
+sentence-transformers
+torch

@@ -57,7 +57,7 @@ export const useChatStore = defineStore('chat', () => {
       // 始终显示模型回复，并将 audio_url 和 emotion 一并存入消息对象
       if (response.reply) {
         addMessage({
-          role: 'assistant',
+          role: 'sakura',
           content: response.reply,
           audio_url: response.audio_url ?? null,
           emotion: response.emotion,  // 新增：保存情绪状态
@@ -133,7 +133,7 @@ export const useChatStore = defineStore('chat', () => {
       await chatApi.saveMemory(content)
 
       addMessage({
-        role: 'assistant',
+        role: 'sakura',
         content: '已将该内容保存至长期记忆。',
       })
     } catch (err) {

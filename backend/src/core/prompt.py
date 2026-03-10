@@ -49,7 +49,7 @@ def build_prompt(
         for vm in vector_memory:
             # 格式：[时间] 角色: 内容
             timestamp = vm["timestamp"][:10]  # 只取日期部分
-            role_name = "你" if vm["role"] == "assistant" else "对方"
+            role_name = "你" if vm["role"] == "sakura" else "对方"
             lines.append(f"- [{timestamp}] {role_name}: {vm['content'][:50]}...")
         vector_memory_text = "\n".join(lines) + "\n"
 

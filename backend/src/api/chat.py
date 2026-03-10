@@ -5,11 +5,23 @@ from pydantic import BaseModel
 from core.conversation import handle_message
 from memory.short_term import get_recent, export_memories, import_memories
 from memory.long_term import save_memory, confirm_save_memory
+from memory.compression import compress_conversations, CompressionError
+from memory.vector_store import add_conversation_vector
 from tts import tts_adapter
 from typing import Optional, Dict, Any
 from pathlib import Path
+from datetime import datetime
 import tempfile
 import shutil
+
+from db.database import AsyncSessionLocal
+from db.crud import (
+    get_recent_conversations,
+    count_conversations,
+    save_conversation,
+    delete_conversations_by_ids,
+    update_conversation_vector_id
+)
 
 router = APIRouter()
 
@@ -53,6 +65,111 @@ class TTSSwitchWeightsRequest(BaseModel):
 @router.get("/history")
 async def get_history(user_id: str = "依洛沐"):
     return await get_recent(user_id)
+
+
+@router.post("/memory/archive")
+async def archive_memory(user_id: str = "依洛沐", role: str = "default"):
+    """
+    归档短期记忆为长期记忆
+    
+    流程：
+    1. 查询所有短期记忆
+    2. 使用LLM压缩总结
+    3. 保存为长期记忆
+    4. 生成向量索引
+    5. 清空短期记忆
+    
+    参数：
+    - user_id: 用户ID
+    - role: 角色类型（用于过滤）
+    
+    返回：
+    - success: 是否成功
+    - message: 提示消息
+    - data: 归档结果数据
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            # 1. 查询所有短期记忆
+            conversations = await get_recent_conversations(db, user_id, limit=10000)
+            
+            if not conversations:
+                return {
+                    "success": False,
+                    "message": "没有可归档的对话",
+                    "error_code": "NO_CONVERSATIONS"
+                }
+            
+            print(f"🔄 [archive] 开始归档 {len(conversations)} 条对话...")
+            
+            # 2. 使用LLM压缩总结
+            try:
+                summary = await compress_conversations(conversations, user_id, role)
+            except CompressionError as e:
+                print(f"❌ [archive] 压缩失败: {e}")
+                return {
+                    "success": False,
+                    "message": f"压缩失败：{str(e)}",
+                    "error_code": "LLM_ERROR"
+                }
+            
+            # 3. 保存为长期记忆
+            try:
+                memory_type = "conversation_summary"
+                key = f"archive_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                
+                # 保存长期记忆（使用confirm_save_memory会自动生成向量）
+                memory_info = {
+                    "memory_type": memory_type,
+                    "key": key,
+                    "value": summary,
+                    "importance": 4
+                }
+                
+                success = await confirm_save_memory(user_id, memory_info)
+                
+                if not success:
+                    raise Exception("保存长期记忆失败")
+                
+                print(f"✅ [archive] 长期记忆已保存: {key}")
+                
+            except Exception as e:
+                print(f"❌ [archive] 保存长期记忆失败: {e}")
+                return {
+                    "success": False,
+                    "message": f"保存失败：{str(e)}",
+                    "error_code": "DB_ERROR"
+                }
+            
+            # 4. 清空短期记忆
+            try:
+                conversation_ids = [c["id"] for c in conversations]
+                await delete_conversations_by_ids(db, conversation_ids)
+                print(f"✅ [archive] 已清空 {len(conversation_ids)} 条短期记忆")
+            except Exception as e:
+                print(f"❌ [archive] 清空短期记忆失败: {e}")
+                # 不返回错误，因为长期记忆已保存
+            
+            return {
+                "success": True,
+                "message": f"已归档 {len(conversations)} 条对话",
+                "data": {
+                    "archived_count": len(conversations),
+                    "summary": summary[:200] + "..." if len(summary) > 200 else summary,
+                    "memory_type": memory_type,
+                    "key": key
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ [archive] 归档失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "message": f"归档失败：{str(e)}",
+                "error_code": "UNKNOWN_ERROR"
+            }
 
 
 @router.post("/memory/export")

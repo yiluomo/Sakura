@@ -20,10 +20,14 @@ from openai import AsyncOpenAI
 
 from config import (
     VECTOR_STORE_DIR,
+    EMBEDDING_MODE,
+    LOCAL_EMBEDDING_MODEL,
+    LOCAL_EMBEDDING_DIMENSION,
     EMBEDDING_API_KEY,
     EMBEDDING_API_BASE,
     EMBEDDING_MODEL,
     EMBEDDING_DIMENSION,
+    ACTUAL_EMBEDDING_DIMENSION,
     VECTOR_SEARCH_LIMIT,
     VECTOR_SEARCH_SCORE_THRESHOLD,
 )
@@ -44,6 +48,9 @@ _metadata = {}  # {vector_id: {conversation_id, user_id, role, content, ...}}
 _id_mapping = {}  # {vector_id: faiss_internal_id}
 _reverse_mapping = {}  # {faiss_internal_id: vector_id}
 
+# 本地 Embedding 模型
+_local_model = None
+
 # OpenAI 客户端（用于生成 embedding）
 openai_client = AsyncOpenAI(
     api_key=EMBEDDING_API_KEY,
@@ -55,6 +62,33 @@ openai_client = AsyncOpenAI(
 # 初始化
 # ─────────────────────────────────────────────
 
+def _load_local_model():
+    """加载本地 Embedding 模型"""
+    global _local_model
+    
+    if EMBEDDING_MODE != "local":
+        return
+    
+    if _local_model is not None:
+        return
+    
+    try:
+        # 设置 HuggingFace 镜像加速下载
+        import os
+        if 'HF_ENDPOINT' not in os.environ:
+            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        
+        from sentence_transformers import SentenceTransformer
+        print(f"🔄 加载本地 Embedding 模型: {LOCAL_EMBEDDING_MODEL}")
+        print(f"   (首次运行会自动下载模型，请耐心等待...)")
+        _local_model = SentenceTransformer(LOCAL_EMBEDDING_MODEL)
+        print(f"✅ 本地模型加载完成")
+    except Exception as e:
+        print(f"❌ 加载本地模型失败: {e}")
+        print(f"   请运行: pip install sentence-transformers")
+        raise
+
+
 def _load_index():
     """加载 FAISS 索引和元数据"""
     global _faiss_index, _metadata, _id_mapping, _reverse_mapping
@@ -63,8 +97,8 @@ def _load_index():
         _faiss_index = faiss.read_index(str(INDEX_FILE))
         print(f"✅ 加载 FAISS 索引: {_faiss_index.ntotal} 条向量")
     else:
-        _faiss_index = faiss.IndexFlatIP(EMBEDDING_DIMENSION)  # 内积（余弦相似度）
-        print("✅ 创建新的 FAISS 索引")
+        _faiss_index = faiss.IndexFlatIP(ACTUAL_EMBEDDING_DIMENSION)  # 内积（余弦相似度）
+        print(f"✅ 创建新的 FAISS 索引 (维度: {ACTUAL_EMBEDDING_DIMENSION})")
     
     if METADATA_FILE.exists():
         with open(METADATA_FILE, 'r', encoding='utf-8') as f:
@@ -95,8 +129,15 @@ def init_collection():
     """
     try:
         VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # 加载本地模型（如果使用本地模式）
+        if EMBEDDING_MODE == "local":
+            _load_local_model()
+        
         _load_index()
-        print(f"✅ 向量存储初始化完成")
+        
+        mode_info = f"本地模型 ({LOCAL_EMBEDDING_MODEL})" if EMBEDDING_MODE == "local" else f"API ({EMBEDDING_MODEL})"
+        print(f"✅ 向量存储初始化完成 - 模式: {mode_info}")
         return True
     except Exception as e:
         print(f"❌ 初始化向量存储失败: {e}")
@@ -115,22 +156,32 @@ async def generate_embedding(text: str) -> List[float]:
         text: 输入文本
         
     Returns:
-        向量列表（长度为 EMBEDDING_DIMENSION）
+        向量列表（长度为 ACTUAL_EMBEDDING_DIMENSION）
     """
     try:
-        response = await openai_client.embeddings.create(
-            model=EMBEDDING_MODEL,
-            input=text,
-        )
-        embedding = response.data[0].embedding
-        # 归一化（用于余弦相似度）
-        norm = np.linalg.norm(embedding)
-        if norm > 0:
-            embedding = (np.array(embedding) / norm).tolist()
-        return embedding
+        if EMBEDDING_MODE == "local":
+            # 使用本地模型
+            if _local_model is None:
+                _load_local_model()
+            
+            # 生成向量
+            embedding = _local_model.encode(text, normalize_embeddings=True)
+            return embedding.tolist()
+        else:
+            # 使用 API
+            response = await openai_client.embeddings.create(
+                model=EMBEDDING_MODEL,
+                input=text,
+            )
+            embedding = response.data[0].embedding
+            # 归一化（用于余弦相似度）
+            norm = np.linalg.norm(embedding)
+            if norm > 0:
+                embedding = (np.array(embedding) / norm).tolist()
+            return embedding
     except Exception as e:
         print(f"❌ 生成 embedding 失败: {e}")
-        return [0.0] * EMBEDDING_DIMENSION
+        return [0.0] * ACTUAL_EMBEDDING_DIMENSION
 
 
 # ─────────────────────────────────────────────
@@ -157,7 +208,7 @@ async def add_conversation_vector(
     Args:
         user_id: 用户 ID
         conversation_id: 对话 ID（MySQL 主键）
-        role: 角色（user/assistant）
+        role: 角色（user/sakura）
         content: 对话内容
         emotion_type: 情绪类型
         importance: 重要度

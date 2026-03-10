@@ -64,7 +64,7 @@ async def init_database():
             required_conv = [
                 "id",            # 主键
                 "user_id",       # 用户 ID
-                "role",          # 角色（user/assistant）
+                "role",          # 角色（user/sakura）
                 "content",       # 对话内容
                 "timestamp",     # 时间戳
                 "vector_id",     # Qdrant 向量 ID

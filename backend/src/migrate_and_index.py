@@ -4,7 +4,9 @@ migrate_and_index.py
 
 功能：
 1. 为 conversations 表添加新字段（不删除数据）
-2. 为所有旧对话生成向量索引（FAISS）
+2. 为 long_term_memory 表添加新字段
+3. 为所有旧对话生成向量索引（FAISS）
+4. 为所有长期记忆生成向量索引（FAISS）
 
 使用方法：
     python migrate_and_index.py
@@ -13,7 +15,7 @@ migrate_and_index.py
 import asyncio
 from sqlalchemy import text
 from db.database import AsyncSessionLocal
-from db.crud import update_conversation_vector_id
+from db.crud import update_conversation_vector_id, update_long_term_memory_vector_id
 from memory.vector_store import init_collection, add_conversation_vector
 
 
@@ -65,31 +67,73 @@ async def migrate_database():
             else:
                 print("  ✅ conversations 表已是最新")
             
-            # 2. 添加索引
-            print("\n[1.2] 添加索引...")
+            # 1.5 更新 role 字段：assistant → sakura
+            print("\n[1.1.5] 更新 role 字段...")
+            result = await db.execute(text(
+                "SELECT COUNT(*) FROM conversations WHERE role = 'assistant'"
+            ))
+            assistant_count = result.scalar()
+            
+            if assistant_count > 0:
+                print(f"  发现 {assistant_count} 条 role='assistant' 的记录，正在更新...")
+                await db.execute(text(
+                    "UPDATE conversations SET role = 'sakura' WHERE role = 'assistant'"
+                ))
+                await db.commit()
+                print(f"  ✅ 已将 {assistant_count} 条记录的 role 更新为 'sakura'")
+            else:
+                print("  ✅ role 字段已是最新（无需更新）")
+            
+            # 2. 迁移 long_term_memory 表
+            print("\n[1.2] 迁移 long_term_memory 表...")
+            result = await db.execute(text("DESCRIBE long_term_memory"))
+            ltm_columns = {row[0] for row in result.fetchall()}
+            
+            if "vector_id" not in ltm_columns:
+                print("添加新字段...")
+                # vector_id: 存储向量数据库中的向量 ID
+                # 用于关联 MySQL 长期记忆记录和向量数据
+                await db.execute(text(
+                    "ALTER TABLE long_term_memory ADD COLUMN vector_id VARCHAR(100) DEFAULT '' AFTER updated_at"
+                ))
+                print("  ✅ 添加 vector_id 字段（向量数据库关联 ID）")
+                await db.commit()
+            else:
+                print("  ✅ long_term_memory 表已是最新")
+            
+            # 3. 添加索引
+            print("\n[1.3] 添加索引...")
             
             try:
                 # idx_vector_id: 加速通过 vector_id 查询对话
                 # 用于向量数据恢复、数据一致性检查
                 await db.execute(text("CREATE INDEX idx_vector_id ON conversations(vector_id)"))
-                print("  ✅ 添加 idx_vector_id 索引（加速向量关联查询）")
+                print("  ✅ 添加 conversations.idx_vector_id 索引")
             except Exception as e:
                 if "Duplicate key name" in str(e):
-                    print("  ⏭️ idx_vector_id 索引已存在")
+                    print("  ⏭️ conversations.idx_vector_id 索引已存在")
             
             try:
                 # idx_importance: 加速按重要度排序查询
                 # 用于检索时优先召回重要对话
                 await db.execute(text("CREATE INDEX idx_importance ON conversations(importance)"))
-                print("  ✅ 添加 idx_importance 索引（加速重要度查询）")
+                print("  ✅ 添加 conversations.idx_importance 索引")
             except Exception as e:
                 if "Duplicate key name" in str(e):
-                    print("  ⏭️ idx_importance 索引已存在")
+                    print("  ⏭️ conversations.idx_importance 索引已存在")
+            
+            try:
+                # 为长期记忆表添加 vector_id 索引
+                await db.execute(text("CREATE INDEX idx_vector_id ON long_term_memory(vector_id)"))
+                print("  ✅ 添加 long_term_memory.idx_vector_id 索引")
+            except Exception as e:
+                if "Duplicate key name" in str(e):
+                    print("  ⏭️ long_term_memory.idx_vector_id 索引已存在")
             
             await db.commit()
             
-            # 3. 迁移 user_states 表（情绪系统）
-            print("\n[1.3] 迁移 user_states 表（情绪系统）...")
+            # 4. 迁移 user_states 表（情绪系统）
+            print("\n[1.4] 迁移 user_states 表（情绪系统）...")
             
             # 检查表是否存在
             try:
@@ -147,7 +191,7 @@ async def migrate_database():
 
 
 async def rebuild_vectors():
-    """步骤 2：为所有对话重建向量索引（FAISS）"""
+    """步骤 2：为所有对话和长期记忆重建向量索引（FAISS）"""
     print("\n" + "=" * 60)
     print("步骤 2：重建向量索引（FAISS）")
     print("=" * 60)
@@ -157,6 +201,21 @@ async def rebuild_vectors():
     if not init_collection():
         print("❌ FAISS 初始化失败")
         return False
+    
+    # 2.1 处理短期记忆（conversations）
+    success_conversations = await rebuild_conversation_vectors()
+    
+    # 2.2 处理长期记忆（long_term_memory）
+    success_long_term = await rebuild_long_term_vectors()
+    
+    return success_conversations and success_long_term
+
+
+async def rebuild_conversation_vectors():
+    """为所有对话（短期记忆）重建向量索引"""
+    print("\n" + "-" * 60)
+    print("[2.1] 处理短期记忆（conversations 表）")
+    print("-" * 60)
     
     async with AsyncSessionLocal() as db:
         try:
@@ -217,14 +276,93 @@ async def rebuild_vectors():
                 progress = min(offset + batch_size, total_count)
                 print(f"  进度: {progress}/{total_count} ({progress*100//total_count}%)")
             
-            print(f"\n✅ 向量索引重建完成")
+            print(f"\n✅ 短期记忆向量索引重建完成")
             print(f"   成功: {processed} 条")
             print(f"   失败: {failed} 条")
             
             return failed == 0
             
         except Exception as e:
-            print(f"\n❌ 向量重建失败: {e}")
+            print(f"\n❌ 短期记忆向量重建失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+
+async def rebuild_long_term_vectors():
+    """为所有长期记忆重建向量索引"""
+    print("\n" + "-" * 60)
+    print("[2.2] 处理长期记忆（long_term_memory 表）")
+    print("-" * 60)
+    
+    async with AsyncSessionLocal() as db:
+        try:
+            # 获取所有长期记忆
+            print("\n统计长期记忆数量...")
+            result = await db.execute(text("SELECT COUNT(*) FROM long_term_memory"))
+            total_count = result.scalar()
+            print(f"📊 共有 {total_count} 条长期记忆需要建立索引")
+            
+            if total_count == 0:
+                print("✅ 没有长期记忆需要处理")
+                return True
+            
+            # 分批处理
+            batch_size = 50  # 长期记忆通常内容较长，减小批次大小
+            processed = 0
+            failed = 0
+            
+            print(f"\n开始处理（每批 {batch_size} 条）...")
+            
+            for offset in range(0, total_count, batch_size):
+                # 获取一批长期记忆（使用反引号包裹保留关键字）
+                result = await db.execute(text(
+                    f"SELECT id, memory_type, `key`, `value`, importance "
+                    f"FROM long_term_memory ORDER BY id LIMIT {batch_size} OFFSET {offset}"
+                ))
+                memories = result.fetchall()
+                
+                # 为每条长期记忆生成向量
+                for mem in memories:
+                    mem_id, memory_type, key, value, importance = mem
+                    
+                    try:
+                        # 使用 value 字段作为内容生成向量
+                        # role 设置为 "long_term_memory" 以便在检索时区分
+                        vector_id = await add_conversation_vector(
+                            user_id="system",  # 长期记忆不绑定特定用户
+                            conversation_id=mem_id,
+                            role="long_term_memory",
+                            content=value or "",
+                            emotion_type="calm",
+                            importance=importance or 3,
+                            timestamp=None
+                        )
+                        
+                        # 更新数据库中的 vector_id
+                        if vector_id:
+                            await update_long_term_memory_vector_id(db, mem_id, vector_id)
+                            processed += 1
+                        else:
+                            failed += 1
+                            print(f"  ⚠️ 长期记忆 {mem_id} ({memory_type}:{key}) 向量生成失败")
+                        
+                    except Exception as e:
+                        failed += 1
+                        print(f"  ❌ 长期记忆 {mem_id} ({memory_type}:{key}) 处理失败: {e}")
+                
+                # 显示进度
+                progress = min(offset + batch_size, total_count)
+                print(f"  进度: {progress}/{total_count} ({progress*100//total_count}%)")
+            
+            print(f"\n✅ 长期记忆向量索引重建完成")
+            print(f"   成功: {processed} 条")
+            print(f"   失败: {failed} 条")
+            
+            return failed == 0
+            
+        except Exception as e:
+            print(f"\n❌ 长期记忆向量重建失败: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -238,6 +376,12 @@ async def main():
     print("\n⚠️  请确保：")
     print("1. MySQL 数据库已启动")
     print("2. 已配置 config.py 中的 API Key")
+    print("\n本脚本将：")
+    print("- 为 conversations 表添加 vector_id, emotion_type, importance 字段")
+    print("- 将 conversations 表中 role='assistant' 更新为 'sakura'")
+    print("- 为 long_term_memory 表添加 vector_id 字段")
+    print("- 为所有短期记忆（对话）生成向量索引")
+    print("- 为所有长期记忆生成向量索引")
     print("\n按 Enter 继续，Ctrl+C 取消...")
     input()
     

@@ -125,7 +125,7 @@ async def handle_message(user_id: str, message: str) -> Dict[str, Any]:
         
         # 保存助手回复
         assistant_conv_id = await save_conversation(
-            db, user_id, "assistant", reply,
+            db, user_id, "sakura", reply,
             emotion_type=emotion_state["emotion_type"],
             importance=3
         )
@@ -169,7 +169,7 @@ async def _add_vectors_async(
         assistant_vector_id = await add_conversation_vector(
             user_id=user_id,
             conversation_id=assistant_conv_id,
-            role="assistant",
+            role="sakura",
             content=assistant_reply,
             emotion_type=emotion_state["emotion_type"],
             importance=3

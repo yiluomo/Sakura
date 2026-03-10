@@ -10,7 +10,7 @@ class Conversation(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(50), nullable=False)
-    role = Column(String(20), nullable=False)  # 'user' or 'assistant'
+    role = Column(String(20), nullable=False)  # 'user' or 'sakura'
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.now)
     
@@ -40,10 +40,12 @@ class LongTermMemory(Base):
     emotional_intensity = Column(Integer, default=0)            # 情感强度 0~5（预留给情绪系统）
     created_at  = Column(DateTime, default=datetime.now)
     updated_at  = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    vector_id   = Column(String(100), default="")               # 向量数据库关联 ID
 
     __table_args__ = (
         Index('idx_type_key',    'memory_type', 'key'),         # 去重 / 精确查找
         Index('idx_importance',  'importance'),                  # 按重要度排序
+        Index('idx_vector_id',   'vector_id'),                   # 向量关联查询
     )
 
 class UserState(Base):

@@ -120,11 +120,25 @@ AUDIO_CACHE_MAX_FILES = int(os.environ.get("AUDIO_CACHE_MAX_FILES", "200"))
 # RAG 向量检索配置（FAISS）
 # ─────────────────────────────────────────────────────────
 
-# Embedding 模型配置（使用 OpenAI API 兼容接口）
+# Embedding 模式选择：'local' 或 'api'
+EMBEDDING_MODE = os.environ.get("EMBEDDING_MODE", "local")  # 默认使用本地模型
+
+# 本地 Embedding 模型配置
+# 可选模型：
+# - "BAAI/bge-small-zh-v1.5": 高质量中文模型，512维，~95MB
+# - "shibing624/text2vec-base-chinese": 轻量级中文，768维，~400MB
+# - "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 多语言，384维，~120MB
+LOCAL_EMBEDDING_MODEL = os.environ.get("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
+LOCAL_EMBEDDING_DIMENSION = int(os.environ.get("LOCAL_EMBEDDING_DIMENSION", "512"))
+
+# API Embedding 模型配置（使用 OpenAI API 兼容接口）
 EMBEDDING_API_KEY = os.environ.get("EMBEDDING_API_KEY", LLM_API_KEY)  # 默认使用 LLM 的 key
 EMBEDDING_API_BASE = os.environ.get("EMBEDDING_API_BASE", LLM_API_BASE)
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")  # 或 deepseek-embedding
 EMBEDDING_DIMENSION = int(os.environ.get("EMBEDDING_DIMENSION", "1536"))  # text-embedding-3-small 的维度
+
+# 根据模式选择实际使用的维度
+ACTUAL_EMBEDDING_DIMENSION = LOCAL_EMBEDDING_DIMENSION if EMBEDDING_MODE == "local" else EMBEDDING_DIMENSION
 
 # 向量检索配置
 VECTOR_SEARCH_LIMIT = int(os.environ.get("VECTOR_SEARCH_LIMIT", "20"))  # 向量检索返回数量

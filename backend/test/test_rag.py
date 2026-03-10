@@ -29,11 +29,11 @@ async def test_vector_generation():
     test_user = "test_rag_user"
     test_conversations = [
         ("user", "我今天去了图书馆看书", "calm", 4),
-        ("assistant", "看书是很好的习惯呢，看了什么类型的书？", "warm", 3),
+        ("sakura", "看书是很好的习惯呢，看了什么类型的书？", "warm", 3),
         ("user", "看了一本关于人工智能的书", "curious", 5),
-        ("assistant", "人工智能...很有趣的领域。", "thoughtful", 3),
+        ("sakura", "人工智能...很有趣的领域。", "thoughtful", 3),
         ("user", "你对AI有什么看法吗？", "curious", 4),
-        ("assistant", "我...也在思考这个问题。", "melancholy", 4),
+        ("sakura", "我...也在思考这个问题。", "melancholy", 4),
     ]
     
     print(f"\n准备插入 {len(test_conversations)} 条测试对话...\n")

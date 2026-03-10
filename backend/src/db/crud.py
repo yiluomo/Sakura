@@ -228,6 +228,21 @@ async def check_memory_exists(
     return result.scalar_one_or_none()
 
 
+async def update_long_term_memory_vector_id(
+    db: AsyncSession,
+    memory_id: int,
+    vector_id: str
+):
+    """更新长期记忆的 vector_id"""
+    result = await db.execute(
+        select(LongTermMemory).where(LongTermMemory.id == memory_id)
+    )
+    memory = result.scalar_one_or_none()
+    if memory:
+        memory.vector_id = vector_id
+        await db.commit()
+
+
 # ========== 用户状态 ==========
 
 async def get_or_create_user_state(

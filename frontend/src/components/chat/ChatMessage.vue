@@ -29,8 +29,8 @@
         <span>{{ message.error }}</span>
       </div>
       
-      <!-- 情绪图标（仅 assistant 消息显示） -->
-      <div v-if="message.role === 'assistant' && message.emotion" class="emotion-indicator">
+      <!-- 情绪图标（仅 sakura 消息显示） -->
+      <div v-if="message.role === 'sakura' && message.emotion" class="emotion-indicator">
         <el-tooltip :content="emotionTooltip" placement="top">
           <span class="emotion-icon">{{ emotionIcon }}</span>
         </el-tooltip>
@@ -40,7 +40,7 @@
       <div class="message-actions">
         <!-- 常驻语音按钮：仅助手消息显示 -->
         <button
-          v-if="message.role === 'assistant'"
+          v-if="message.role === 'sakura'"
           class="voice-btn"
           :class="{ playing: isPlaying, loading: isTtsLoading }"
           @click="handleVoice"

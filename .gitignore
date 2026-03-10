@@ -24,6 +24,7 @@ venv.bak/
 *.swo
 *~
 .DS_Store
+.kiro/
 
 # Database & Memory
 *.db
