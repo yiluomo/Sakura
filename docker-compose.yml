@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────
 # Sakura docker-compose.yml
-# 服务编排：mysql + qdrant + backend + frontend
+# 服务编排：backend + frontend (连接本地数据库)
 #
 # 使用方式：
 #   docker compose up -d          # 启动全部服务
@@ -11,29 +11,6 @@
 
 services:
 
-  # ── MySQL 数据库 ───────────────────────────────────────
-  mysql:
-    image: mysql:8.0
-    container_name: sakura_mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: YaeSakura
-      MYSQL_DATABASE: sakura_db
-      MYSQL_CHARSET: utf8mb4
-    volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pYaeSakura"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks:
-      - sakura_net
-
-
   # ── FastAPI 后端 ───────────────────────────────────────
   backend:
     build:
@@ -42,17 +19,16 @@ services:
     container_name: sakura_backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: "mysql+aiomysql://root:YaeSakura@mysql:3306/sakura_db"
+      DATABASE_URL: "mysql+aiomysql://root:YaeSakura@host.docker.internal:3306/sakura_db"
       MEMORY_STORE_DIR: "/memory_store"
       VECTOR_STORE_DIR: "/memory_store/vectors"
     volumes:
       - memory_store:/memory_store
       - ./backend/src/logs:/app/logs
     ports:
-      - "8000:8000"
-    depends_on:
-      mysql:
-        condition: service_healthy
+      - "0.0.0.0:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - sakura_net
 
@@ -65,7 +41,8 @@ services:
     container_name: sakura_frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
     depends_on:
       - backend
     networks:
@@ -74,8 +51,6 @@ services:
 
 # ── 持久化卷 ─────────────────────────────────────────────
 volumes:
-  mysql_data:
-    name: sakura_mysql_data
   memory_store:
     name: sakura_memory_store
 

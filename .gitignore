@@ -25,6 +25,8 @@ venv.bak/
 *~
 .DS_Store
 .kiro/
+android/
+capacitor.config.ts
 
 # Database & Memory
 *.db
