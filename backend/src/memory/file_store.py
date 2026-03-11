@@ -9,6 +9,12 @@ file_store.py
   - 每个文件最多存 SUMMARIES_MAX_ENTRIES 条记录（默认 10 条）
   - 写新摘要时，自动找当前未满的最新文件，满了则新建下一个
   - 写入函数返回实际使用的文件路径，供调用方写入数据库索引
+
+归档对话（archived_conversation）的存储规则：
+  - 文件命名：archived_1.md、archived_2.md……
+  - 每个文件最多存 ARCHIVE_MAX_ENTRIES 条记录（默认 50 条）
+  - 保留对话原文、角色、情绪、关键词等完整字段
+  - 向量文件丢失时可从此文件恢复
 """
 
 import re
@@ -28,6 +34,9 @@ from config import MEMORY_STORE_DIR
 
 # 每个 summaries_N.md 文件最多存储的摘要条数
 SUMMARIES_MAX_ENTRIES = 10
+
+# 每个 archived_N.md 文件最多存储的归档对话条数
+ARCHIVE_MAX_ENTRIES = 50
 
 
 # ─────────────────────────────────────────────
@@ -63,32 +72,34 @@ _FILE_TITLES = {
 
 # memory_type → 可读中文标题
 _TYPE_TO_TITLE = {
-    "name":                 "姓名",
-    "age":                  "年龄",
-    "birthday":             "生日",
-    "location":             "居住地",
-    "occupation":           "职业",
-    "family":               "家人",
-    "friend":               "朋友",
-    "hobby":                "爱好",
-    "dislike":              "厌恶",
-    "experience":           "经历",
-    "manual":               "备忘",
-    "conversation_summary": "对话摘要",
+    "name":                   "姓名",
+    "age":                    "年龄",
+    "birthday":               "生日",
+    "location":               "居住地",
+    "occupation":             "职业",
+    "family":                 "家人",
+    "friend":                 "朋友",
+    "hobby":                  "爱好",
+    "dislike":                "厌恶",
+    "experience":             "经历",
+    "manual":                 "备忘",
+    "conversation_summary":   "对话摘要",
+    "archived_conversation":  "归档对话",
 }
 
 
 # ─────────────────────────────────────────────
-# 摘要文件管理（summaries_N.md 系列）
+# 通用文件系列管理工具
 # ─────────────────────────────────────────────
 
-def _get_all_summary_files() -> List[Path]:
+def _get_all_series_files(prefix: str) -> List[Path]:
     """
-    返回所有 summaries_N.md 文件，按编号从小到大排列。
+    返回所有 {prefix}_N.md 文件，按编号从小到大排列。
+    例：prefix="summaries" → summaries_1.md, summaries_2.md ...
     """
     files = []
-    for fp in MEMORY_STORE_DIR.glob("summaries_*.md"):
-        m = re.search(r"summaries_(\d+)\.md$", fp.name)
+    for fp in MEMORY_STORE_DIR.glob(f"{prefix}_*.md"):
+        m = re.search(rf"{re.escape(prefix)}_(\d+)\.md$", fp.name)
         if m:
             files.append((int(m.group(1)), fp))
     return [fp for _, fp in sorted(files)]
@@ -102,13 +113,13 @@ def _count_file_entries(filepath: Path) -> int:
         return f.read().count("<!-- entry:")
 
 
-def _find_key_in_summaries(key: str) -> Optional[Path]:
+def _find_key_in_series(prefix: str, memory_type: str, key: str) -> Optional[Path]:
     """
-    在所有 summaries_N.md 文件中查找指定 key 是否已存在。
+    在所有 {prefix}_N.md 文件中查找指定 key 是否已存在。
     返回包含该 key 的文件路径，未找到返回 None。
     """
-    marker = f"<!-- entry: conversation_summary/{key} -->"
-    for fp in _get_all_summary_files():
+    marker = f"<!-- entry: {memory_type}/{key} -->"
+    for fp in _get_all_series_files(prefix):
         if not fp.exists():
             continue
         with open(fp, encoding="utf-8") as f:
@@ -117,27 +128,52 @@ def _find_key_in_summaries(key: str) -> Optional[Path]:
     return None
 
 
-def _get_summary_target_file(key: str) -> Path:
+def _get_series_target_file(prefix: str, memory_type: str, key: str, max_entries: int) -> Path:
     """
-    为新摘要确定目标文件：
+    为新条目确定目标文件：
     - 若 key 已存在于某文件 → 返回该文件（原地更新）
-    - 否则找最新的未满文件（< SUMMARIES_MAX_ENTRIES 条）→ 返回该文件
-    - 若所有文件都满 → 新建 summaries_(N+1).md
+    - 否则找最新的未满文件（< max_entries 条）→ 返回该文件
+    - 若所有文件都满 → 新建 {prefix}_(N+1).md
     """
-    # 检查是否为已存在的 key（更新场景）
-    existing = _find_key_in_summaries(key)
+    existing = _find_key_in_series(prefix, memory_type, key)
     if existing:
         return existing
 
-    # 查找有空位的最新文件
-    all_files = _get_all_summary_files()
-    for fp in reversed(all_files):  # 从最新往前找
-        if _count_file_entries(fp) < SUMMARIES_MAX_ENTRIES:
+    all_files = _get_all_series_files(prefix)
+    for fp in reversed(all_files):
+        if _count_file_entries(fp) < max_entries:
             return fp
 
-    # 所有文件都满（或不存在）→ 新建
     next_num = len(all_files) + 1
-    return MEMORY_STORE_DIR / f"summaries_{next_num}.md"
+    return MEMORY_STORE_DIR / f"{prefix}_{next_num}.md"
+
+
+# ─────────────────────────────────────────────
+# 摘要文件管理（summaries_N.md 系列）
+# ─────────────────────────────────────────────
+
+def _get_all_summary_files() -> List[Path]:
+    """返回所有 summaries_N.md 文件，按编号从小到大排列。"""
+    return _get_all_series_files("summaries")
+
+
+def _get_summary_target_file(key: str) -> Path:
+    """为新摘要确定目标文件（见 _get_series_target_file）。"""
+    return _get_series_target_file("summaries", "conversation_summary", key, SUMMARIES_MAX_ENTRIES)
+
+
+# ─────────────────────────────────────────────
+# 归档文件管理（archived_N.md 系列）
+# ─────────────────────────────────────────────
+
+def _get_all_archive_files() -> List[Path]:
+    """返回所有 archived_N.md 文件，按编号从小到大排列。"""
+    return _get_all_series_files("archived")
+
+
+def _get_archive_target_file(key: str) -> Path:
+    """为新归档对话确定目标文件（见 _get_series_target_file）。"""
+    return _get_series_target_file("archived", "archived_conversation", key, ARCHIVE_MAX_ENTRIES)
 
 
 # ─────────────────────────────────────────────
@@ -147,10 +183,12 @@ def _get_summary_target_file(key: str) -> Path:
 def get_target_file(memory_type: str, key: str = "") -> Path:
     """
     根据 memory_type 返回对应 .md 文件的绝对路径。
-    对 conversation_summary 需要传入 key 以动态确定目标文件。
+    对动态文件系列（conversation_summary / archived_conversation）需要传入 key。
     """
     if memory_type == "conversation_summary":
         return _get_summary_target_file(key)
+    if memory_type == "archived_conversation":
+        return _get_archive_target_file(key)
     filename = _TYPE_TO_FILE.get(memory_type, "notes.md")
     return MEMORY_STORE_DIR / filename
 
@@ -158,7 +196,6 @@ def get_target_file(memory_type: str, key: str = "") -> Path:
 def get_relative_path(memory_type: str, key: str = "") -> str:
     """
     返回相对路径字符串，用于写入数据库 file_path 字段。
-    对 conversation_summary 需要传入 key 以动态确定目标文件。
     """
     filepath = get_target_file(memory_type, key)
     return f"memory_store/{filepath.name}"
@@ -223,17 +260,56 @@ def _build_summary_entry_block(key: str, content: str,
     )
 
 
+def _build_archive_entry_block(
+    key: str,
+    role: str,
+    content: str,
+    keywords: List[str],
+    emotion_type: str = "calm",
+    importance: int = 3,
+    timestamp: str = "",
+) -> str:
+    """
+    构建归档对话专用条目块（archived_N.md 格式）。
+    保留完整原文、角色、情绪、关键词，用于向量文件丢失时恢复。
+    """
+    kw_str = " ".join([f"`{kw}`" for kw in keywords]) if keywords else "（无）"
+    role_label = "用户" if role == "user" else "樱"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    ts_str = f"  \n**原始时间**：{timestamp}" if timestamp else ""
+
+    return (
+        f"\n<!-- entry: archived_conversation/{key} -->\n"
+        f"## 归档对话 [{role_label}]\n"
+        f"**内容**：{content}  \n"
+        f"**情绪**：{emotion_type}  \n"
+        f"**关键词**：{kw_str}  \n"
+        f"**重要度**：{importance}{ts_str}  \n"
+        f"**归档时间**：{now}\n\n"
+        f"---\n"
+    )
+
+
 # ─────────────────────────────────────────────
 # 核心写入函数
 # ─────────────────────────────────────────────
 
-async def write_entry(memory_type: str, key: str, content: str,
-                      keywords: List[str], importance: int = 3) -> str:
+async def write_entry(
+    memory_type: str,
+    key: str,
+    content: str,
+    keywords: List[str],
+    importance: int = 3,
+    # 归档对话专用字段（archived_conversation 类型时使用）
+    role: str = "",
+    emotion_type: str = "calm",
+    timestamp: str = "",
+) -> str:
     """
     写入或更新单条记忆到对应的 .md 文件。
 
     - 对 conversation_summary：自动路由到正确的 summaries_N.md
-      （已存在 key → 原地更新；新 key 且当前文件满 → 新建下一个文件）
+    - 对 archived_conversation：自动路由到正确的 archived_N.md
     - 其他类型：写入固定对应文件
     - 找到已有 <!-- entry: type/key --> 注释 → 替换整个条目块
     - 未找到 → 追加到文件末尾
@@ -242,13 +318,18 @@ async def write_entry(memory_type: str, key: str, content: str,
     Returns:
         实际写入的文件相对路径（用于写入数据库 file_path 字段）
     """
-    # 确定目标文件（summaries 需要动态路由）
     filepath = get_target_file(memory_type, key)
 
     # 构建新的条目文本
     if memory_type == "conversation_summary":
         new_block = _build_summary_entry_block(key, content, keywords)
         file_title = f"# 对话摘要记录（{filepath.stem.replace('summaries_', '第')}卷）"
+    elif memory_type == "archived_conversation":
+        new_block = _build_archive_entry_block(
+            key, role, content, keywords, emotion_type, importance, timestamp
+        )
+        vol_num = filepath.stem.replace("archived_", "第")
+        file_title = f"# 归档对话记录（{vol_num}卷）"
     else:
         new_block = _build_entry_block(memory_type, key, content, keywords, importance)
         filename = _TYPE_TO_FILE.get(memory_type, "notes.md")
@@ -274,7 +355,6 @@ async def write_entry(memory_type: str, key: str, content: str,
 
         await _write_file(filepath, updated)
 
-    # 返回实际写入的相对路径（供调用方存入数据库）
     return f"memory_store/{filepath.name}"
 
 
@@ -326,7 +406,7 @@ def _parse_entries_from_file(text: str) -> List[dict]:
 async def get_top_memories(n: int = 5) -> str:
     """
     读取所有 .md 文件，解析条目，按重要度降序取前 n 条。
-    summaries 会读取所有 summaries_N.md 文件（全部卷）。
+    summaries / archived 系列会读取全部卷。
     返回格式化的字符串，用于注入对话 prompt。
     """
     all_entries = []
@@ -340,6 +420,12 @@ async def get_top_memories(n: int = 5) -> str:
 
     # 读取所有 summaries_N.md 文件
     for fp in _get_all_summary_files():
+        text = await _read_file(fp)
+        if text:
+            all_entries.extend(_parse_entries_from_file(text))
+
+    # 读取所有 archived_N.md 文件（归档的原始对话）
+    for fp in _get_all_archive_files():
         text = await _read_file(fp)
         if text:
             all_entries.extend(_parse_entries_from_file(text))

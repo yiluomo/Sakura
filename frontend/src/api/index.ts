@@ -1,5 +1,9 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 
+// ⚠️ 前端仅以桌面/移动应用形式分发，不对外公开部署，Token 可安全硬编码
+// 如需更换 Token，后端同步修改 config.py 中的 API_TOKEN 即可
+const API_TOKEN = 'sakura-private-token-a7f3k9z2m1p8q4w6'
+
 export interface ApiResponse<T> {
   data: T
   success?: boolean
@@ -11,7 +15,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://192.168.0.8:8000/api',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -22,9 +26,12 @@ class ApiClient {
   }
 
   private setupInterceptors() {
-    // 请求拦截器
+    // 请求拦截器：自动注入 API Token
     this.client.interceptors.request.use(
-      config => config,
+      config => {
+        config.headers['X-API-Token'] = API_TOKEN
+        return config
+      },
       error => Promise.reject(error)
     )
 
@@ -41,13 +48,13 @@ class ApiClient {
           error.code = 'ERR_NETWORK'
           error.message = '网络连接失败'
         }
-        
+
         console.error('API Error:', {
           url: error.config?.url,
           status: error.response?.status,
           message: error.message
         })
-        
+
         return Promise.reject(error)
       }
     )

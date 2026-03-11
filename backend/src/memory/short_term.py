@@ -26,7 +26,7 @@ import json
 from typing import Dict, List, Any
 
 
-async def get_recent(user_id: str, limit: int = 6):
+async def get_recent(user_id: str, limit: int = 50):
     """获取最近的对话"""
     async with AsyncSessionLocal() as db:
         return await get_recent_conversations(db, user_id, limit)

@@ -1,11 +1,13 @@
 import asyncio
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
+from api.deps import verify_token
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from core.conversation import handle_message
 from memory.short_term import get_recent, export_memories, import_memories
 from memory.long_term import save_memory, confirm_save_memory
-from memory.compression import compress_conversations, CompressionError
+from memory.keyword_extractor import extract_keywords_batch, keywords_to_str
+from memory import file_store
 from memory.vector_store import add_conversation_vector
 from tts import tts_adapter
 from typing import Optional, Dict, Any
@@ -20,10 +22,13 @@ from db.crud import (
     count_conversations,
     save_conversation,
     delete_conversations_by_ids,
-    update_conversation_vector_id
+    update_conversation_vector_id,
+    get_oldest_conversations,
+    bulk_save_archived_conversations,
 )
+from config import SHORT_TERM_MAX, SHORT_TERM_ARCHIVE_COUNT
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_token)])
 
 
 class ChatRequest(BaseModel):
@@ -63,113 +68,162 @@ class TTSSwitchWeightsRequest(BaseModel):
 
 
 @router.get("/history")
-async def get_history(user_id: str = "依洛沐"):
-    return await get_recent(user_id)
+async def get_history(user_id: str = "依洛沐", limit: int = 50):
+    return await get_recent(user_id, limit=limit)
 
 
 @router.post("/memory/archive")
 async def archive_memory(user_id: str = "依洛沐", role: str = "default"):
     """
-    归档短期记忆为长期记忆
-    
+    将最早的 SHORT_TERM_ARCHIVE_COUNT 条短期记忆归档为长期记忆。
+
     流程：
-    1. 查询所有短期记忆
-    2. 使用LLM压缩总结
-    3. 保存为长期记忆
-    4. 生成向量索引
-    5. 清空短期记忆
-    
+    1. 取最旧的 N 条对话记录
+    2. 一次性批量提取关键词（分批 LLM 请求， ~5次而非 150次）
+    3. 将每条对话原文写入 archived_N.md 文件
+    4. 批量写入 MySQL long_term_memory 表（保留完整原文）
+    5. 从 MySQL conversations 表删除已归档记录（FAISS 向量保留）
+
     参数：
     - user_id: 用户ID
-    - role: 角色类型（用于过滤）
-    
-    返回：
-    - success: 是否成功
-    - message: 提示消息
-    - data: 归档结果数据
+    - role: 角色类型（保留兼容）
+    """
+    result = await _do_archive(user_id)
+    return result
+
+
+async def _do_archive(user_id: str) -> dict:
+    """
+    归档核心逻辑（可被手动接口和自动触发共用）。
     """
     async with AsyncSessionLocal() as db:
-        try:
-            # 1. 查询所有短期记忆
-            conversations = await get_recent_conversations(db, user_id, limit=10000)
-            
-            if not conversations:
-                return {
-                    "success": False,
-                    "message": "没有可归档的对话",
-                    "error_code": "NO_CONVERSATIONS"
-                }
-            
-            print(f"🔄 [archive] 开始归档 {len(conversations)} 条对话...")
-            
-            # 2. 使用LLM压缩总结
-            try:
-                summary = await compress_conversations(conversations, user_id, role)
-            except CompressionError as e:
-                print(f"❌ [archive] 压缩失败: {e}")
-                return {
-                    "success": False,
-                    "message": f"压缩失败：{str(e)}",
-                    "error_code": "LLM_ERROR"
-                }
-            
-            # 3. 保存为长期记忆
-            try:
-                memory_type = "conversation_summary"
-                key = f"archive_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                
-                # 保存长期记忆（使用confirm_save_memory会自动生成向量）
-                memory_info = {
-                    "memory_type": memory_type,
-                    "key": key,
-                    "value": summary,
-                    "importance": 4
-                }
-                
-                success = await confirm_save_memory(user_id, memory_info)
-                
-                if not success:
-                    raise Exception("保存长期记忆失败")
-                
-                print(f"✅ [archive] 长期记忆已保存: {key}")
-                
-            except Exception as e:
-                print(f"❌ [archive] 保存长期记忆失败: {e}")
-                return {
-                    "success": False,
-                    "message": f"保存失败：{str(e)}",
-                    "error_code": "DB_ERROR"
-                }
-            
-            # 4. 清空短期记忆
-            try:
-                conversation_ids = [c["id"] for c in conversations]
-                await delete_conversations_by_ids(db, conversation_ids)
-                print(f"✅ [archive] 已清空 {len(conversation_ids)} 条短期记忆")
-            except Exception as e:
-                print(f"❌ [archive] 清空短期记忆失败: {e}")
-                # 不返回错误，因为长期记忆已保存
-            
-            return {
-                "success": True,
-                "message": f"已归档 {len(conversations)} 条对话",
-                "data": {
-                    "archived_count": len(conversations),
-                    "summary": summary[:200] + "..." if len(summary) > 200 else summary,
-                    "memory_type": memory_type,
-                    "key": key
-                }
-            }
-            
-        except Exception as e:
-            print(f"❌ [archive] 归档失败: {e}")
-            import traceback
-            traceback.print_exc()
+        # 1. 查询当前总条数
+        total = await count_conversations(db, user_id)
+        if total == 0:
             return {
                 "success": False,
-                "message": f"归档失败：{str(e)}",
-                "error_code": "UNKNOWN_ERROR"
+                "message": "没有可归档的对话",
+                "error_code": "NO_CONVERSATIONS"
             }
+
+        # 2. 取最旧的 N 条对话
+        conversations = await get_oldest_conversations(
+            db, user_id, limit=SHORT_TERM_ARCHIVE_COUNT
+        )
+        if not conversations:
+            return {
+                "success": False,
+                "message": "没有可归档的对话",
+                "error_code": "NO_CONVERSATIONS"
+            }
+
+        print(f"🔄 [archive] 开始归档最早 {len(conversations)} 条（共 {total} 条）...")
+
+    # 3. 批量提取关键词（单次 LLM 批量请求）
+    # 内容格式："[timestamp] role: content"
+    contents = [
+        f"[{conv['timestamp']}] {conv['role']}: {conv['content']}"
+        for conv in conversations
+    ]
+    print(f"🔄 [archive] 批量提取关键词（{len(contents)}条, 每批最多30条）...")
+    all_keywords = await extract_keywords_batch(contents)
+
+    # 4. 逐条写入 archived_N.md 文件
+    db_records = []       # 待写入数据库的条目
+    archived_ids = []     # MySQL 待删除的对话 ID
+    file_errors = 0
+
+    for i, conv in enumerate(conversations):
+        keywords = all_keywords[i] if i < len(all_keywords) else []
+        kw_str = keywords_to_str(keywords)
+        key = f"conv_{conv['id']}_{conv['timestamp'][:10]}"
+        value = f"[{conv['timestamp']}] {conv['role']}: {conv['content']}"
+        emotion_type = conv.get("emotion_type", "calm")
+        importance = conv.get("importance", 3)
+
+        # 写入 .md 文件
+        try:
+            file_path = await file_store.write_entry(
+                memory_type="archived_conversation",
+                key=key,
+                content=conv["content"],
+                keywords=keywords,
+                importance=importance,
+                role=conv["role"],
+                emotion_type=emotion_type,
+                timestamp=conv["timestamp"],
+            )
+        except Exception as e:
+            print(f"⚠️  [archive] 文件写入失败 conv_id={conv['id']}: {e}")
+            file_path = ""
+            file_errors += 1
+
+        # 收集 DB 写入条目
+        db_records.append({
+            "key": key,
+            "value": value,          # 完整原文，不截断
+            "keywords": kw_str,
+            "file_path": file_path,
+            "emotion_tag": emotion_type,
+            "emotional_intensity": max(0, importance - 1),
+            "importance": importance,
+        })
+        archived_ids.append(conv["id"])
+
+    # 5. 批量写入数据库（单次事务）
+    async with AsyncSessionLocal() as db:
+        try:
+            inserted = await bulk_save_archived_conversations(db, db_records)
+            print(f"✅ [archive] 已写入数据库 {inserted} 条长期记忆")
+        except Exception as e:
+            print(f"❌ [archive] 数据库写入失败: {e}")
+            return {
+                "success": False,
+                "message": f"数据库写入失败：{str(e)}",
+                "error_code": "DB_ERROR"
+            }
+
+        # 6. 从 MySQL conversations 表删除已归档的对话记录
+        #    FAISS 向量不删除，RAG 检索不受影响
+        try:
+            await delete_conversations_by_ids(db, archived_ids)
+            print(f"✅ [archive] 已从 conversations 表删除 {len(archived_ids)} 条（FAISS 向量保留）")
+        except Exception as e:
+            print(f"⚠️  [archive] 删除 conversations 失败: {e}")
+            # 删除失败不回滚，长期记忆已成功写入
+
+    remaining = total - len(archived_ids)
+    print(
+        f"✅ [archive] 归档完成: 共归档 {len(archived_ids)} 条, "
+        f"文件失败 {file_errors} 条, 剩余对话 {remaining} 条"
+    )
+
+    return {
+        "success": True,
+        "message": f"已归档 {len(archived_ids)} 条对话（剩余 {remaining} 条）",
+        "data": {
+            "archived_count": len(archived_ids),
+            "file_errors": file_errors,
+            "remaining": remaining,
+        }
+    }
+
+
+async def _auto_archive_if_needed(user_id: str):
+    """
+    当短期记忆条数 ≥ SHORT_TERM_MAX 时，自动触发归档。
+    作为异步任务运行，不阻塞 /chat 主流程。
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            total = await count_conversations(db, user_id)
+        if total >= SHORT_TERM_MAX:
+            print(
+                f"🔔 [auto-archive] 对话数 {total} ≥ 阈值 {SHORT_TERM_MAX}，触发自动归档..."
+            )
+            await _do_archive(user_id)
+    except Exception as e:
+        print(f"⚠️  [auto-archive] 自动归档失败（不影响对话）: {e}")
 
 
 @router.post("/memory/export")
@@ -361,6 +415,9 @@ async def chat(req: ChatRequest):
             # TTS 失败不影响对话功能，仅记录日志
             print(f"⚠️  [TTS] 音频生成失败（不影响对话）：{e}")
             audio_url = None
+
+    # 3. 异步检查短期记忆条数，达到阈值时自动归档（不阻塞当前请求）
+    asyncio.create_task(_auto_archive_if_needed(req.user_id))
 
     return {
         "reply":       reply,

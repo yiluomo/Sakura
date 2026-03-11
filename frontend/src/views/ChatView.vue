@@ -142,7 +142,7 @@ const toggleTtsAutoPlay  = async () => {
   if (!ttsAutoPlay.value) {
     const testResult = await chatApi.testTts()
     if (!testResult.available) {
-      uiStore.showError({
+      uiStore.showError({ 
         title: 'TTS 服务不可用',
         message: testResult.error || 'TTS 服务未启动或配置错误',
         type: 'warning'

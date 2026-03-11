@@ -46,18 +46,27 @@ src/
 
 | 文件 | 职责 |
 |------|------|
-| `chat.py` | 对话、记忆保存确认、手动归档接口 |
+| `chat.py` | 所有业务接口（对话、记忆、TTS、归档） |
+| `deps.py` | FastAPI 依赖注入（`verify_token` Token 认证）|
 | `__init__.py` | 模块初始化 |
+
+> 所有接口均通过 `deps.verify_token` 保护，请求头需携带 `X-API-Token`。
 
 **API 接口列表：**
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/history` | 获取对话历史 |
-| POST | `/api/chat` | 发送消息，返回回复和记忆触发信息 |
+| GET  | `/api/history` | 获取对话历史（默认最近 50 条）|
+| POST | `/api/chat` | 发送消息，返回回复、情绪、音频 URL |
 | POST | `/api/memory` | 手动保存一条记忆 |
 | POST | `/api/memory/confirm` | 用户确认/取消记忆保存 |
-| POST | `/api/memory/archive` | 手动归档：压缩全部短期记忆到长期记忆 |
+| POST | `/api/memory/archive` | 手动归档最早 N 条短期记忆到长期记忆 |
+| POST | `/api/memory/export` | 导出全部对话记录为 JSON 文件 |
+| POST | `/api/memory/import` | 导入记忆 JSON 文件并可选重建向量索引 |
+| POST | `/api/tts` | 按需生成 TTS 音频（命中缓存直接返回）|
+| POST | `/api/tts/set_refer_audio` | 设置 GPT-SoVITS 参考音频 |
+| POST | `/api/tts/set_gpt_weights` | 热切换 GPT 模型权重 |
+| POST | `/api/tts/set_sovits_weights` | 热切换 SoVITS 模型权重 |
 
 #### core/ - Core 层
 
@@ -164,14 +173,14 @@ frontend/
 ```
 docs/
 ├── sakura/             # 项目文档
-│   ├── 开发文档.md
-│   ├── project.md          # 本文件
-│   ├── sakura.md
+│   ├── 开发文档.md         # 开发阶段、进度、技术债务
+│   ├── project.md          # 本文件：模块结构、接口、数据流
+│   ├── sakura.md           # 人物设定
 │   ├── 长期记忆使用说明.md
+│   ├── 公网部署方案.md      # Cloudflare Tunnel + 安全加固方案（待实施）
 │   └── summaries_example.md  # summaries.md 格式示例
 └── write/              # 开发日志
-    ├── 2026-2-3.md
-    └── 2026-3-4.md
+    └── ...（按日期）
 ```
 
 ## 数据流

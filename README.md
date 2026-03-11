@@ -43,6 +43,7 @@ npm run electron:dev
 - [开发文档](docs/sakura/开发文档.md)
 - [人物设定](docs/sakura/sakura.md)
 - [长期记忆使用说明](docs/sakura/长期记忆使用说明.md)
+- [🔐 公网部署方案](docs/sakura/公网部署方案.md)
 
 ## 愿景
 
@@ -202,7 +203,8 @@ python migrate_and_index.py
 
 ```bash
 # API 导出（自动保存到 memory_exports/）
-curl -X POST "http://localhost:8000/api/memory/export?user_id=依洛沐"
+curl -X POST "http://localhost:8000/api/memory/export?user_id=依洛沐" \
+  -H "X-API-Token: sakura-private-token-a7f3k9z2m1p8q4w6"
 ```
 
 ### 导入记忆
@@ -210,12 +212,15 @@ curl -X POST "http://localhost:8000/api/memory/export?user_id=依洛沐"
 ```bash
 # 导入并重建向量
 curl -X POST "http://localhost:8000/api/memory/import?user_id=依洛沐&rebuild_vectors=true" \
+  -H "X-API-Token: sakura-private-token-a7f3k9z2m1p8q4w6" \
   -F "file=@memory_exports/memory_export_依洛沐_20260310.json"
 ```
 
 ---
 
 ## 验证部署
+
+> ▶️ 所有 API 接口均需携带 `X-API-Token` 请求头，Token 分配置于 `backend/src/config.py`。
 
 ```bash
 # 1. 检查 MySQL
@@ -227,6 +232,7 @@ curl http://localhost:8000/
 # 3. 测试对话
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
+  -H "X-API-Token: sakura-private-token-a7f3k9z2m1p8q4w6" \
   -d '{"user_id": "test", "message": "你好"}'
 ```
 

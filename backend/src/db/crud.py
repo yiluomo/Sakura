@@ -168,15 +168,21 @@ async def save_or_update_long_term_memory(
     file_path: str = "",
     importance: int = 1,
     emotion_tag: str = "",
-    emotional_intensity: int = 0
+    emotional_intensity: int = 0,
+    full_value: bool = False,  # 为 True 时完整保存 value，不截断（用于 archived_conversation）
 ):
     """
     若记录已存在则更新，否则新建。
     这是写入长期记忆索引的统一入口。
+
+    full_value=True 时不截断 value，用于 archived_conversation 类型
+    保留对话完整原文，以支持向量文件丢失时从 MySQL 恢复。
     """
+    stored_value = value if full_value else (value[:100] if value else "")
+
     existing = await check_memory_exists(db, memory_type, key)
     if existing:
-        existing.value = value[:100] if value else ""
+        existing.value = stored_value
         existing.keywords = keywords
         existing.importance = importance
         existing.emotion_tag = emotion_tag
@@ -187,7 +193,7 @@ async def save_or_update_long_term_memory(
         memory = LongTermMemory(
             memory_type=memory_type,
             key=key,
-            value=value[:100] if value else "",
+            value=stored_value,
             keywords=keywords,
             file_path=file_path,
             importance=importance,
@@ -241,6 +247,40 @@ async def update_long_term_memory_vector_id(
     if memory:
         memory.vector_id = vector_id
         await db.commit()
+
+
+async def bulk_save_archived_conversations(
+    db: AsyncSession,
+    records: list,
+) -> int:
+    """
+    批量写入归档对话到 long_term_memory 表（单次事务）。
+
+    Args:
+        db: 数据库会话
+        records: 归档条目列表，每条包含：
+            key, value, keywords, file_path,
+            emotion_tag, emotional_intensity, importance
+
+    Returns:
+        实际写入的条数
+    """
+    inserted = 0
+    for rec in records:
+        memory = LongTermMemory(
+            memory_type="archived_conversation",
+            key=rec["key"],
+            value=rec["value"],          # 完整原文，不截断
+            keywords=rec.get("keywords", ""),
+            file_path=rec.get("file_path", ""),
+            importance=rec.get("importance", 3),
+            emotion_tag=rec.get("emotion_tag", "calm"),
+            emotional_intensity=rec.get("emotional_intensity", 0),
+        )
+        db.add(memory)
+        inserted += 1
+    await db.commit()
+    return inserted
 
 
 # ========== 用户状态 ==========
@@ -339,7 +379,9 @@ async def get_oldest_conversations(
             "id": c.id,
             "role": c.role,
             "content": c.content,
-            "timestamp": c.timestamp.isoformat()
+            "timestamp": c.timestamp.isoformat(),
+            "emotion_type": c.emotion_type,   # 归档时用于写入 emotion_tag
+            "importance": c.importance,        # 归档时用于写入重要度
         }
         for c in conversations
     ]

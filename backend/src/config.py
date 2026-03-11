@@ -148,3 +148,18 @@ VECTOR_SEARCH_SCORE_THRESHOLD = float(os.environ.get("VECTOR_SEARCH_SCORE_THRESH
 RECALL_SHORT_TERM_LIMIT = int(os.environ.get("RECALL_SHORT_TERM_LIMIT", "6"))  # 短期记忆条数
 RECALL_VECTOR_LIMIT = int(os.environ.get("RECALL_VECTOR_LIMIT", "5"))  # 向量检索记忆条数
 RECALL_LONG_TERM_LIMIT = int(os.environ.get("RECALL_LONG_TERM_LIMIT", "5"))  # 长期记忆条数
+
+# ─────────────────────────────────────────────────────────
+# 短期记忆自动归档配置
+# SQLite conversations 表超过 SHORT_TERM_MAX 条时，
+# 自动将最早的 SHORT_TERM_ARCHIVE_COUNT 条归档到长期记忆（不压缩，保留原文）
+# ─────────────────────────────────────────────────────────
+SHORT_TERM_MAX           = int(os.environ.get("SHORT_TERM_MAX",           "200"))  # 触发归档的对话条数上限
+SHORT_TERM_ARCHIVE_COUNT = int(os.environ.get("SHORT_TERM_ARCHIVE_COUNT", "150"))  # 每次归档最早的 N 条
+
+# ─────────────────────────────────────────────────────────
+# API 访问令牌（静态 Token 认证）
+# 前端应用将此 Token 硬编码在请求头 X-API-Token 中
+# 可通过环境变量 API_TOKEN 覆盖（如需临时换 key 时使用）
+# ─────────────────────────────────────────────────────────
+API_TOKEN = os.environ.get("API_TOKEN", "sakura-private-token-a7f3k9z2m1p8q4w6")
