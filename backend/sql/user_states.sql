@@ -1,0 +1,1 @@
+INSERT INTO `user_states` (`user_id`, `affinity`, `mood`, `last_interaction`, `total_messages`, `emotion_type`, `energy_level`, `emotion_updated_at`) VALUES ('依洛沐', 0, 60, '2026-03-11 18:12:54', NULL, 'happy', 78, '2026-03-11 18:12:54');

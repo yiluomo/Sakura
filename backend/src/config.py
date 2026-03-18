@@ -50,11 +50,11 @@ if _db_url_env:
     DATABASE_URL = _db_url_env                         # Docker 注入
 else:
     #【个人电脑】
-    # DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
+    DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
 
     #【公司电脑】（当前激活）
-    _psw = quote_plus("asdag!331@dAaf")
-    DATABASE_URL = f"mysql+aiomysql://root:{_psw}@localhost:3306/sakura_db"
+    # _psw = quote_plus("asdag!331@dAaf")
+    # DATABASE_URL = f"mysql+aiomysql://root:{_psw}@localhost:3306/sakura_db"
 
 # LLM API 配置（用于对话总结）
 LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API密钥
