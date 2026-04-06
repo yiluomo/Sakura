@@ -17,8 +17,10 @@ COPY package.json package-lock.json ./
 
 # 配置国内镜像（加速 Electron 下载）
 RUN npm config set registry https://registry.npmmirror.com/
-RUN npm config set electron_mirror https://npmmirror.com/mirrors/electron/
-RUN npm config set electron_custom_dir "{{ version }}"
+ENV ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+ENV ELECTRON_CUSTOM_DIR="{{ version }}"
+
+
 
 # 干净安装依赖（--force 解决兼容警告，--no-optional 减少冗余）
 RUN npm ci --force --no-optional
