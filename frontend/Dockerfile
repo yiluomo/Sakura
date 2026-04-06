@@ -1,45 +1,46 @@
 # ─────────────────────────────────────────────
-# 前端 Dockerfile（多阶段构建）
-# Stage 1: Node 构建 Vue3 产物
-# Stage 2: Nginx 托管静态文件 + 反向代理后端
+# Electron 前端 Dockerfile（多阶段构建）
+# Stage 1: Node 构建 Electron 应用
+# Stage 2: Nginx 托管静态资源（或按需打包 Electron 运行环境）
 # ─────────────────────────────────────────────
 
-# Stage 1: 构建 Vue3
+# Stage 1: 构建 Electron 应用
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# 安装 git（某些 npm 包可能需要）
-RUN apk add --no-cache git
+# 安装 Electron 构建必需的系统依赖（alpine 基础镜像缺失）
+RUN apk add --no-cache git python3 make g++
 
-# 先复制 package 文件利用缓存层
+# 复制依赖文件，优先利用缓存层
 COPY package.json package-lock.json ./
 
-# 使用国内 npm 镜像源加速安装
+# 配置国内镜像（加速 Electron 下载）
 RUN npm config set registry https://registry.npmmirror.com/
-RUN npm ci --prefer-offline
+RUN npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+RUN npm config set electron_custom_dir "{{ version }}"
 
-# 复制源码
+# 干净安装依赖（--force 解决兼容警告，--no-optional 减少冗余）
+RUN npm ci --force --no-optional
+
+# 复制项目源码
 COPY . .
 
-# 设置环境变量，跳过类型检查加速构建
+# 构建：设置 Node 内存上限（避免构建内存溢出），执行 Electron 构建脚本
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=8192"
+RUN npm run electron:build  # 恢复原 Electron 构建脚本
 
-# 分步构建：先尝试完整构建，失败则跳过类型检查
-RUN echo "开始构建..." && \
-    (npm run build || npm run build:no-check)
-
-
-# Stage 2: Nginx 服务
+# Stage 2: Nginx 托管静态产物（若需纯 Web 部署，可调整为复制 dist 目录）
 FROM nginx:1.25-alpine AS runner
 
-# 删除默认配置，使用自定义配置
+# 删除默认 Nginx 配置，替换为自定义配置
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.docker.conf /etc/nginx/conf.d/default.conf
 
-# 复制构建产物
+# 复制 Electron 构建输出的静态/运行产物（根据实际输出路径调整）
 COPY --from=builder /app/dist /usr/share/nginx/html
+# 若 Electron 构建输出在 release 目录，替换为：COPY --from=builder /app/release /usr/share/nginx/html
 
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
