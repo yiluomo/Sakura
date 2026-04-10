@@ -32,12 +32,12 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("[INFO] 数据库初始化完成")
     
-    # 初始化 Qdrant 向量数据库
+    # 初始化 FAISS 向量数据库
     from memory.vector_store import init_collection
     if init_collection():
-        print("[INFO] Qdrant 向量数据库初始化完成")
+        print("[INFO] FAISS 向量数据库初始化完成")
     else:
-        print("[WARNING] Qdrant 向量数据库初始化失败，向量检索功能将不可用")
+        print("[WARNING] FAISS 向量数据库初始化失败，向量检索功能将不可用")
     
     # TODO: 情绪系统定时任务（预留）
     # 使用 APScheduler 每小时执行一次情绪衰减和精力恢复

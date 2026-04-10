@@ -6,7 +6,7 @@
 
 ## 🚀 快速启动
 
-### 方式一：Docker（推荐）
+### 方式一：Docker（推荐，已包含后端）
 
 ```bash
 docker compose up -d --build
@@ -15,7 +15,14 @@ docker compose up -d --build
 docker compose logs -f backend
 ```
 
-访问：`http://localhost`
+- 后端 API: http://localhost:8000
+- 前端 UI: 本仓库不在 Docker 中启动前端，请在本机启动 Electron 或 Vite 开发服务器（见下文）
+
+前置说明：
+- 需要主机上已运行的 MySQL（默认连接 root:YaeSakura@localhost:3306）
+- 若数据库 sakura_db 不存在，容器会在启动时自动创建并初始化表结构
+- 如需手动创建数据库，可执行：
+  - Windows PowerShell: `mysql -u root -p -e "CREATE DATABASE sakura_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"`
 
 ### 方式二：原生运行
 
@@ -25,8 +32,11 @@ conda activate sakura
 cd backend
 pip install -r requirements.txt
 
-# 2. 数据库迁移（首次或升级时）
+# 2. 初始化数据库（首次安装）
 cd backend/src
+python init_db.py
+
+# 或数据库升级（保留数据）
 python migrate_and_index.py
 
 # 3. 启动后端
@@ -234,41 +244,6 @@ curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -H "X-API-Token: sakura-private-token-a7f3k9z2m1p8q4w6" \
   -d '{"user_id": "test", "message": "你好"}'
-```
-
----
-
-# 或使用标准迁移
-python migrate_db.py
-```
-
-#### 6. 启动后端
-
-```powershell
-cd backend/src
-python main.py
-
-# 或使用 uvicorn
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**启动成功日志：**
-```
-[INFO] 数据库初始化完成
-✅ Qdrant 集合已存在: conversations
-[INFO] Qdrant 向量数据库初始化完成
-INFO:     Uvicorn running on http://0.0.0.0:8000
-```
-
-#### 7. 启动前端
-
-```powershell
-cd frontend
-npm install
-
-npm run electron:dev   # 桌面应用模式（端口 722）
-# 或
-npm run dev            # 浏览器模式（端口 722）
 ```
 
 ---

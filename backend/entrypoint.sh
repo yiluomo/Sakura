@@ -20,8 +20,6 @@ from urllib.parse import urlparse
 
 url = os.environ.get('DATABASE_URL', '')
 try:
-    # 解析 URL 中的连接信息
-    # 格式: mysql+aiomysql://user:pass@host:port/db
     url = url.replace('mysql+aiomysql://', '')
     cred, rest = url.split('@')
     user, psw = cred.split(':', 1)
@@ -30,8 +28,12 @@ try:
     port = int(host_port.split(':')[1]) if ':' in host_port else 3306
 
     async def check():
-        conn = await aiomysql.connect(host=host, port=port, user=user, password=psw, db=db)
-        conn.close()
+        conn1 = await aiomysql.connect(host=host, port=port, user=user, password=psw)
+        async with conn1.cursor() as cur:
+            await cur.execute(f\"CREATE DATABASE IF NOT EXISTS \`{db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci\")
+        conn1.close()
+        conn2 = await aiomysql.connect(host=host, port=port, user=user, password=psw, db=db)
+        conn2.close()
 
     asyncio.run(check())
     print('MySQL 已就绪')
@@ -48,11 +50,11 @@ except Exception as e:
     sleep 3
 done
 
-# ── 执行数据库迁移 ────────────────────────
-echo "[2/3] 执行数据库迁移..."
-python migrate_db.py
-echo "   ✅ 迁移完成"
+# ── 执行数据库初始化与同步 ────────────────────────
+echo "[2/3] 执行数据库初始化与同步..."
+python setup_db.py
+echo "   ✅ 数据库设置完成"
 
 # ── 启动 FastAPI 服务 ─────────────────────
 echo "[3/3] 启动 Uvicorn 服务..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+exec python -m uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1

@@ -12,6 +12,7 @@ aiofiles
 # RAG 向量检索依赖
 faiss-cpu
 numpy
+packaging
 openai>=1.0.0
 sentence-transformers
 torch
