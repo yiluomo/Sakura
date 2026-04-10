@@ -5,12 +5,15 @@
 # ─────────────────────────────────────────────
 
 # Stage 1: 构建 Electron 应用
-FROM node:20-alpine AS builder
+FROM node:20-bullseye-slim AS builder
 
 WORKDIR /app
 
-# 安装 Electron 构建必需的系统依赖（alpine 基础镜像缺失）
-RUN apk add --no-cache git python3 make g++
+# 安装构建必需的系统依赖（Debian）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git python3 build-essential libc6-dev libgtk-3-0 libnotify4 libnss3 \
+    libxss1 libasound2 libx11-xcb1 libxcomposite1 libxdamage1 libxtst6 \
+&& rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件，优先利用缓存层
 COPY package.json package-lock.json ./
@@ -20,10 +23,8 @@ RUN npm config set registry https://registry.npmmirror.com/
 ENV ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
 ENV ELECTRON_CUSTOM_DIR="{{ version }}"
 
-
-
-# 干净安装依赖（--force 解决兼容警告，--no-optional 减少冗余）
-RUN npm ci --force --no-optional
+# 安装全部依赖（包含 devDependencies，构建阶段需要）
+RUN npm install --no-optional --no-audit --registry=https://registry.npmmirror.com/
 
 # 复制项目源码
 COPY . .
@@ -31,7 +32,10 @@ COPY . .
 # 构建：设置 Node 内存上限（避免构建内存溢出），执行 Electron 构建脚本
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=8192"
-RUN npm run electron:build  # 恢复原 Electron 构建脚本
+# 先执行前端打包，便于定位错误
+RUN npm run build
+# 再运行 electron-builder：单独一层可让错误日志更明显
+RUN npx electron-builder
 
 # Stage 2: Nginx 托管静态产物（若需纯 Web 部署，可调整为复制 dist 目录）
 FROM nginx:1.25-alpine AS runner

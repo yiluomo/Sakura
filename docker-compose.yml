@@ -1,12 +1,13 @@
 # ─────────────────────────────────────────────────────────
 # Sakura docker-compose.yml
-# 服务编排：backend + frontend (连接本地数据库)
+# 服务编排：仅包含 backend (供本地 Electron 客户端连接)
+#
+# 注意：该配置假设 MySQL 数据库已在宿主机运行 (默认: localhost:3306)
 #
 # 使用方式：
-#   docker compose up -d          # 启动全部服务
-#   docker compose down           # 停止并移除容器
-#   docker compose logs -f        # 查看实时日志
-#   docker compose logs backend   # 只看后端日志
+#   docker compose up -d          # 启动后端服务
+#   docker compose down           # 停止服务
+#   docker compose logs -f backend # 查看日志
 # ─────────────────────────────────────────────────────────
 
 services:
@@ -32,28 +33,10 @@ services:
     networks:
       - sakura_net
 
-
-  # ── Vue3 前端 + Nginx ─────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: sakura_frontend
-    restart: unless-stopped
-    ports:
-      - "0.0.0.0:80:80"
-      - "0.0.0.0:443:443"
-    depends_on:
-      - backend
-    networks:
-      - sakura_net
-
-
 # ── 持久化卷 ─────────────────────────────────────────────
 volumes:
   memory_store:
     name: sakura_memory_store
-
 
 # ── 内部网络 ─────────────────────────────────────────────
 networks:

@@ -182,7 +182,7 @@ export const useChatStore = defineStore('chat', () => {
           content: msg.content,
           timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
           audio_url: msg.audio_url ?? null,
-          emotion: emotion, // 使用构造的emotion对象
+          emotion: msg.emotion ?? undefined, // 将 null 转为 undefined，匹配现有类型
         }
       })
       
