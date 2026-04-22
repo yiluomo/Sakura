@@ -8,7 +8,6 @@ Sakura/
 ├── frontend/                # 前端界面（含 Electron 桌面应用）
 ├── docs/                    # 项目文档
 ├── memory_store/            # 长期记忆 Markdown 文件（运行时自动创建）
-├── docker-compose.yml       # Docker 容器编排
 ├── .git/                    # Git 版本控制
 ├── .gitignore               # Git 忽略规则
 └── README.md                # 项目说明
@@ -20,10 +19,7 @@ Sakura/
 backend/
 ├── src/                     # 源代码
 ├── test/                    # 测试脚本
-├── Dockerfile               # Docker 镜像构建
-├── entrypoint.sh            # 容器启动脚本（等MySQL → 迁移 → 启动）
-├── requirements.txt         # Python 依赖清单
-└── environment.yml          # Conda 环境配置
+└── requirements.txt         # Python 依赖清单
 ```
 
 ### src/ - 源代码
@@ -145,8 +141,6 @@ frontend/
 │   ├── styles/          # 样式文件
 │   ├── types/           # TypeScript 类型定义
 │   └── views/           # 页面视图
-├── Dockerfile           # Docker 镜像构建（多阶段）
-├── nginx.docker.conf    # 容器内 Nginx 配置
 ├── package.json         # 项目配置（含 Electron 脚本）
 ├── vite.config.ts       # Vite 配置
 └── tsconfig.json        # TypeScript 配置
@@ -265,8 +259,7 @@ MySQL: sakura_db
 - **HTTP 客户端**: Axios
 
 **部署**:
-- **容器化**: Docker + docker-compose
-- **反向代理**: Nginx（容器或本地）
+- **反向代理**: Nginx（本地）
 - **服务化**: NSSM（Windows 原生部署）
 - **桌面打包**: electron-builder（Windows NSIS 安装包）
 

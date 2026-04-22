@@ -32,10 +32,14 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("[INFO] 数据库初始化完成")
     
-    # 初始化 FAISS 向量数据库
-    from memory.vector_store import init_collection
+    # 初始化 FAISS 向量数据库及引擎任务
+    from memory.vector_store import init_collection, start_periodic_save, force_save_index
+    import asyncio
+    
     if init_collection():
         print("[INFO] FAISS 向量数据库初始化完成")
+        asyncio.create_task(start_periodic_save())
+        print("[INFO] FAISS 异步定时写盘任务已启动")
     else:
         print("[WARNING] FAISS 向量数据库初始化失败，向量检索功能将不可用")
     
@@ -52,7 +56,10 @@ async def lifespan(app: FastAPI):
     yield  # 分割线，启动完成，开始处理请求
     # 如需服务关闭逻辑，写在这里（比如关闭数据库连接池、清理资源）
     # 示例：await close_db()
-    # print("[INFO] 服务关闭，资源清理完成")
+    
+    # 退出前强制把遗留在内存的脏数据保存到本地
+    force_save_index()
+    print("[INFO] 服务关闭，内存状态已安全落盘。")
 
 # 初始化app时绑定lifespan
 app = FastAPI(title="樱", lifespan=lifespan)

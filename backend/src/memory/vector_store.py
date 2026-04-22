@@ -57,6 +57,13 @@ openai_client = AsyncOpenAI(
     base_url=EMBEDDING_API_BASE,
 )
 
+# 异步后台任务所需参数
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+_is_dirty = False
+_save_executor = ThreadPoolExecutor(max_workers=1)
+
 
 # ─────────────────────────────────────────────
 # 初始化
@@ -144,6 +151,25 @@ def init_collection():
         return False
 
 
+async def start_periodic_save():
+    """后台定时任务：每 5 分钟检查一次是否需要保存到磁盘"""
+    global _is_dirty
+    while True:
+        await asyncio.sleep(300)  # 5 分钟
+        if _is_dirty:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(_save_executor, _save_index)
+            _is_dirty = False
+
+
+def force_save_index():
+    """手动同步保存（主要用于服务关闭时调用）"""
+    global _is_dirty
+    if _is_dirty:
+        _save_index()
+        _is_dirty = False
+
+
 # ─────────────────────────────────────────────
 # Embedding 生成
 # ─────────────────────────────────────────────
@@ -218,6 +244,8 @@ async def add_conversation_vector(
         vector_id: 向量 ID
     """
     try:
+        global _is_dirty
+        
         # 1. 生成向量
         vector = await generate_embedding(content)
         vector_np = np.array([vector], dtype=np.float32)
@@ -243,8 +271,8 @@ async def add_conversation_vector(
             "timestamp": (timestamp or datetime.now()).isoformat(),
         }
         
-        # 5. 持久化
-        _save_index()
+        # 5. 标记脏数据，等待异步定时写入
+        _is_dirty = True
         
         return vector_id
         
@@ -340,6 +368,7 @@ def delete_conversation_vector(user_id: str, conversation_id: int) -> bool:
         是否成功
     """
     try:
+        global _is_dirty
         vector_id = generate_vector_id(user_id, conversation_id)
         
         # 从元数据中删除
@@ -352,7 +381,7 @@ def delete_conversation_vector(user_id: str, conversation_id: int) -> bool:
             if faiss_id in _reverse_mapping:
                 del _reverse_mapping[faiss_id]
         
-        _save_index()
+        _is_dirty = True
         return True
     except Exception as e:
         print(f"❌ 删除向量失败 conversation_id={conversation_id}: {e}")

@@ -8,27 +8,7 @@
 
 ## 🚀 快速启动
 
-### 方式一：Docker 部署（推荐，仅后端）
 
-此方式仅启动后端 API 服务。脚本会自动在宿主 MySQL 中创建 `sakura_db` 数据库、所有必要的数据表及初始化默认数据。
-
-1. **环境准备**：
-   - 安装 Docker 和 Docker Desktop。
-   - 确保宿主机 MySQL 8.0+ 正在运行（默认 `localhost:3306`）。
-
-2. **启动后端**：
-   ```bash
-   docker compose up -d --build
-   ```
-
-3. **查看启动日志**（确认数据库自动设置完成）：
-   ```bash
-   docker compose logs -f backend
-   ```
-
-4. **启动前端**（见下方“前端启动”部分）。
-
-### 方式二：原生运行
 
 1. **创建环境**：
    ```bash
