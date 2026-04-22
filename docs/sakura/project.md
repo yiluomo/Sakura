@@ -248,7 +248,7 @@ MySQL: sakura_db
 - **大模型**: DeepSeek API / Ollama
 - **HTTP 客户端**: httpx (异步)
 - **文件 IO**: aiofiles (异步)
-- **环境**: Python 3.9+ / Conda
+- **环境**: Python 3.9+ / uv
 
 **前端**:
 - **框架**: Vue 3 + TypeScript

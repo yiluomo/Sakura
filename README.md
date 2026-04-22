@@ -10,17 +10,15 @@
 
 
 
-1. **创建环境**：
-   ```bash
-   conda create -n sakura python=3.9 -y
-   conda activate sakura
-   ```
-
-2. **安装后端依赖**：
+1. **安装 uv 包管理器**（若尚未安装）：
    ```bash
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+
+2. **创建环境与安装后端依赖**：
+   ```bash
    cd backend
-   uv venv
+   uv venv --python 3.9
    .venv\Scripts\activate
    uv pip install -r requirements.txt
    ```
@@ -28,7 +26,7 @@
 3. **数据库初始化**：
    ```bash
    cd src
-   python setup_db.py  # 全自动创建库表、同步字段及初始化数据
+   python setup_db.py  # 全自动创建库表、同步字段及初始化数据,执行前在config.py里配置当前数据库
    ```
 
 4. **启动后端**：
