@@ -229,7 +229,7 @@ async def archive_memory(user_id: str = "依洛沐", role: str = "default"):
 
 async def _do_archive(user_id: str) -> dict:
     """
-    归档核心逻辑（可被手动接口和自动触发共用）。
+    归档核心逻辑（将短期记忆聚合、总结并按倒序保存为一条长期记忆）。
     """
     async with AsyncSessionLocal() as db:
         # 1. 查询当前总条数
@@ -254,61 +254,70 @@ async def _do_archive(user_id: str) -> dict:
 
         print(f"🔄 [archive] 开始归档最早 {len(conversations)} 条（共 {total} 条）...")
 
-    # 3. 批量提取关键词（单次 LLM 批量请求）
-    contents = [
-        f"[{conv['timestamp']}] {conv['role']}: {conv['content']}"
-        for conv in conversations
-    ]
-    print(f"🔄 [archive] 批量提取关键词（{len(contents)}条, 每批最多30条）...")
-    all_keywords = await extract_keywords_batch(contents)
+    # 3. 对话内容总结（使用已有的 compression 模块）
+    from memory.compression import compress_conversations
+    try:
+        summary = await compress_conversations(conversations, user_id)
+    except Exception as e:
+        print(f"⚠️  [archive] 对话总结失败: {e}，将使用降级策略")
+        # 降级直接拼接对话
+        summary = "（对话总结生成失败）"
 
-    # 4. 逐条写入 archived_N.md 文件
-    db_records = []       # 待写入数据库的条目
-    archived_ids = []     # MySQL 待删除的对话 ID
+    # 4. 提取总结的关键词
+    keywords = await extract_keywords(summary)
+    kw_str = keywords_to_str(keywords)
+
+    # 5. 按照发生时间倒序排列对话详情，并与总结文本合并
+    conversations_reverse = list(reversed(conversations))
+    dialogues_text_list = []
+    for conv in conversations_reverse:
+        ts_clean = conv["timestamp"].replace("T", " ")
+        role_label = "用户" if conv["role"] == "user" else "樱"
+        dialogues_text_list.append(f"[{ts_clean}] {role_label}: {conv['content']}")
+    dialogues_text = "\n".join(dialogues_text_list)
+
+    combined_content = f"【对话总结】\n{summary}\n\n【对话详情（倒序）】\n{dialogues_text}"
+
+    # 6. 生成唯一会话 key
+    start_ts = conversations[0]["timestamp"].replace("T", "_").replace(":", "-")[:19]
+    end_ts = conversations[-1]["timestamp"].replace("T", "_").replace(":", "-")[:19]
+    key = f"archive_{start_ts}_to_{end_ts}"
+
+    # 7. 写入 .md 文件
     file_errors = 0
+    try:
+        file_path = await file_store.write_entry(
+            memory_type="archived_conversation",
+            key=key,
+            content=combined_content,
+            keywords=keywords,
+            importance=3,
+            role="session",
+            emotion_type="calm",
+            timestamp=f"{conversations[0]['timestamp']} 至 {conversations[-1]['timestamp']}",
+        )
+    except Exception as e:
+        print(f"⚠️  [archive] 文件写入失败 key={key}: {e}")
+        file_path = ""
+        file_errors = 1
 
-    for i, conv in enumerate(conversations):
-        keywords = all_keywords[i] if i < len(all_keywords) else []
-        kw_str = keywords_to_str(keywords)
-        key = f"conv_{conv['id']}_{conv['timestamp'][:10]}"
-        value = f"[{conv['timestamp']}] {conv['role']}: {conv['content']}"
-        emotion_type = conv.get("emotion_type", "calm")
-        importance = conv.get("importance", 3)
+    # 8. 准备写入数据库的聚合条目
+    db_records = [{
+        "key": key,
+        "value": combined_content,
+        "keywords": kw_str,
+        "file_path": file_path,
+        "emotion_tag": "calm",
+        "emotional_intensity": 0,
+        "importance": 3,
+    }]
+    archived_ids = [conv["id"] for conv in conversations]
 
-        # 写入 .md 文件
-        try:
-            file_path = await file_store.write_entry(
-                memory_type="archived_conversation",
-                key=key,
-                content=conv["content"],
-                keywords=keywords,
-                importance=importance,
-                role=conv["role"],
-                emotion_type=emotion_type,
-                timestamp=conv["timestamp"],
-            )
-        except Exception as e:
-            print(f"⚠️  [archive] 文件写入失败 conv_id={conv['id']}: {e}")
-            file_path = ""
-            file_errors += 1
-
-        # 收集 DB 写入条目
-        db_records.append({
-            "key": key,
-            "value": value,          # 完整原文，不截断
-            "keywords": kw_str,
-            "file_path": file_path,
-            "emotion_tag": emotion_type,
-            "emotional_intensity": max(0, importance - 1),
-            "importance": importance,
-        })
-        archived_ids.append(conv["id"])
-
-    # 5. 批量写入数据库（单次事务）
+    # 9. 写入数据库并清理 conversations 表
     async with AsyncSessionLocal() as db:
         try:
             inserted = await bulk_save_archived_conversations(db, db_records)
-            print(f"✅ [archive] 已写入数据库 {inserted} 条长期记忆")
+            print(f"✅ [archive] 已写入数据库 {inserted} 条聚合长期记忆")
         except Exception as e:
             print(f"❌ [archive] 数据库写入失败: {e}")
             return {
@@ -317,7 +326,6 @@ async def _do_archive(user_id: str) -> dict:
                 "error_code": "DB_ERROR"
             }
 
-        # 6. 从 MySQL conversations 表删除已归档的对话记录
         try:
             await delete_conversations_by_ids(db, archived_ids)
             print(f"✅ [archive] 已从 conversations 表删除 {len(archived_ids)} 条（FAISS 向量保留）")
@@ -326,13 +334,13 @@ async def _do_archive(user_id: str) -> dict:
 
     remaining = total - len(archived_ids)
     print(
-        f"✅ [archive] 归档完成: 共归档 {len(archived_ids)} 条, "
-        f"文件失败 {file_errors} 条, 剩余对话 {remaining} 条"
+        f"✅ [archive] 归档完成: 共归档 {len(archived_ids)} 条原始对话, "
+        f"聚合保存 1 条长期记忆, 文件错误数 {file_errors}, 剩余对话 {remaining} 条"
     )
 
     return {
         "success": True,
-        "message": f"已归档 {len(archived_ids)} 条对话（剩余 {remaining} 条）",
+        "message": f"已归档 {len(archived_ids)} 条对话并生成总结（剩余 {remaining} 条）",
         "data": {
             "archived_count": len(archived_ids),
             "file_errors": file_errors,

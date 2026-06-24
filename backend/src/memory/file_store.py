@@ -274,9 +274,9 @@ def _build_archive_entry_block(
     保留完整原文、角色、情绪、关键词，用于向量文件丢失时恢复。
     """
     kw_str = " ".join([f"`{kw}`" for kw in keywords]) if keywords else "（无）"
-    role_label = "用户" if role == "user" else "樱"
+    role_label = "会话" if role == "session" else ("用户" if role == "user" else "樱")
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    ts_str = f"  \n**原始时间**：{timestamp}" if timestamp else ""
+    ts_str = f"  \n**时间范围**：{timestamp}" if role == "session" and timestamp else (f"  \n**原始时间**：{timestamp}" if timestamp else "")
 
     return (
         f"\n<!-- entry: archived_conversation/{key} -->\n"

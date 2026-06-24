@@ -446,7 +446,7 @@
                 <el-option
                   v-for="category in categories"
                   :key="category"
-                  :label="category"
+                  :label="getCategoryLabel(category)"
                   :value="category"
                 />
               </el-select>
@@ -465,7 +465,7 @@
               <el-table-column label="分类标签" width="130" align="center">
                 <template #default="scope">
                   <el-tag :type="getCategoryType(scope.row.category)" size="small">
-                    {{ scope.row.category }}
+                    {{ getCategoryLabel(scope.row.category) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -679,8 +679,32 @@ const getCategoryType = (category: string) => {
     '创意': 'danger',
     '重要': 'danger',
     '备忘': 'info',
+    'manual': 'info',
+    'archived_conversation': 'warning',
+    'conversation_summary': 'success',
+    'name': 'primary',
+    'hobby': 'success',
   }
   return typeMap[category] || 'default'
+}
+
+const getCategoryLabel = (category: string): string => {
+  const map: Record<string, string> = {
+    name: '姓名',
+    age: '年龄',
+    birthday: '生日',
+    location: '居住地',
+    occupation: '职业',
+    family: '家人',
+    friend: '朋友',
+    hobby: '爱好',
+    dislike: '厌恶',
+    experience: '经历',
+    manual: '备忘',
+    conversation_summary: '对话摘要',
+    archived_conversation: '归档对话',
+  }
+  return map[category] || category
 }
 
 const formatDate = (date: any) => {
