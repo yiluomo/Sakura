@@ -29,24 +29,6 @@
             :type="ttsAutoPlay ? 'primary' : 'default'"
           />
         </el-tooltip>
-        <!-- 导出记忆按钮 -->
-        <el-tooltip content="导出记忆数据" placement="bottom">
-          <el-button
-            @click="exportMemory"
-            :icon="Download"
-            :loading="isExporting"
-            circle
-          />
-        </el-tooltip>
-        <!-- 导入记忆按钮 -->
-        <el-tooltip content="导入记忆数据" placement="bottom">
-          <el-button
-            @click="importMemory"
-            :icon="Upload"
-            :loading="isImporting"
-            circle
-          />
-        </el-tooltip>
         <!-- 记忆管理按钮 -->
         <el-tooltip content="记忆管理" placement="bottom">
           <el-button
@@ -55,14 +37,6 @@
             circle
           />
         </el-tooltip>
-        <!-- 隐藏的文件输入 -->
-        <input
-          ref="fileInput"
-          type="file"
-          accept=".json"
-          style="display: none"
-          @change="handleFileSelect"
-        />
         <!-- 珍藏此刻按钮 -->
         <el-button
           @click="archiveAndClear"
@@ -119,7 +93,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Sunny, Moon, Files, ChatDotRound, Headset, Mute, Upload, Download, Collection } from '@element-plus/icons-vue'
+import { Sunny, Moon, Files, ChatDotRound, Headset, Mute, Collection } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import ErrorToast from '@/components/common/ErrorToast.vue'
@@ -133,16 +107,14 @@ import sakuraAvatar from '@/asserts/img/sakura_avatar.jpeg'
 const chatStore = useChatStore()
 const uiStore = useUIStore()
 
-const messagesContainer = ref<HTMLElement>()
-const fileInput = ref<HTMLInputElement>()
+const messagesContainer = ref<HTMLElement | null>(null)
 
 const messages      = computed(() => chatStore.messages)
 const isLoading     = computed(() => chatStore.isLoading)
 const isDarkMode    = computed(() => uiStore.isDarkMode)
 const ttsAutoPlay   = computed(() => uiStore.ttsAutoPlay)
 const isArchiving   = ref(false)
-const isExporting   = ref(false)
-const isImporting   = ref(false)
+const isSending     = ref(false)
 
 const toggleTheme        = () => uiStore.toggleDarkMode()
 const toggleTtsAutoPlay  = async () => {
@@ -350,92 +322,7 @@ const archiveAndClear = async () => {
   }
 }
 
-const exportMemory = async () => {
-  try {
-    isExporting.value = true
-    
-    // 调用导出API
-    const blob = await chatApi.exportMemory()
-    
-    // 创建下载链接
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `memory_export_${new Date().toISOString().slice(0, 10)}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    
-    ElMessage.success('记忆导出成功！')
-  } catch (error) {
-    const errorInfo = parseError(error)
-    uiStore.showError(errorInfo)
-  } finally {
-    isExporting.value = false
-  }
-}
 
-const importMemory = () => {
-  // 触发文件选择
-  fileInput.value?.click()
-}
-
-const handleFileSelect = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  
-  if (!file) return
-  
-  // 验证文件类型
-  if (!file.name.endsWith('.json')) {
-    ElMessage.error('请选择 JSON 文件')
-    return
-  }
-  
-  // 验证文件大小（50MB）
-  const maxSize = 50 * 1024 * 1024
-  if (file.size > maxSize) {
-    ElMessage.error('文件大小超过限制（50MB）')
-    return
-  }
-  
-  try {
-    await ElMessageBox.confirm(
-      `确认导入记忆文件：${file.name} (${(file.size / 1024).toFixed(2)} KB)？\n\n导入后将重建向量索引，可能需要几分钟。`,
-      '导入记忆',
-      {
-        confirmButtonText: '确认导入',
-        cancelButtonText: '取消',
-        type: 'info',
-      }
-    )
-    
-    isImporting.value = true
-    
-    const result = await chatApi.importMemory(file)
-    
-    if (result.status === 'ok') {
-      ElMessage.success({
-        message: `✅ ${result.msg}`,
-        duration: 5000
-      })
-      // 刷新对话列表
-      await chatStore.fetchHistory()
-    } else {
-      ElMessage.error(result.msg)
-    }
-  } catch (action) {
-    if (action !== 'cancel' && action !== 'close') {
-      const errorInfo = parseError(action)
-      uiStore.showError(errorInfo)
-    }
-  } finally {
-    isImporting.value = false
-    // 清空文件输入
-    if (target) target.value = ''
-  }
-}
 </script>
 
 <style lang="scss" scoped>

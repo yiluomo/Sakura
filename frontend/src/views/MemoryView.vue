@@ -416,9 +416,13 @@
             <template #header>
               <div class="card-header-between">
                 <span class="card-header-title">📊 长期记忆列表 (Excel风格)</span>
-                <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">
-                  添加新记忆
-                </el-button>
+                <div class="header-actions">
+                  <el-button type="success" @click="exportMemory" :loading="isExporting" :icon="Download">导出</el-button>
+                  <el-button type="warning" @click="importMemory" :loading="isImporting" :icon="Upload">导入</el-button>
+                  <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">
+                    添加新记忆
+                  </el-button>
+                </div>
               </div>
             </template>
 
@@ -508,6 +512,15 @@
       :memory="editingMemory"
       @confirm="handleMemorySave"
     />
+
+    <!-- 隐藏的文件输入 -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".json"
+      @change="handleFileSelect"
+      style="display: none"
+    />
   </div>
 </template>
 
@@ -521,11 +534,14 @@ import {
   Collection,
   Plus,
   Search,
+  Download,
+  Upload
 } from '@element-plus/icons-vue'
 import MemoryDialog from '@/components/memory/MemoryDialog.vue'
 import { useMemoryStore } from '@/stores/memory'
 import type { Memory } from '@/types'
 import { memoryApi, type SystemConfig } from '@/api/memory'
+import { chatApi } from '@/api/chat'
 import sakuraAvatar from '@/asserts/img/sakura_avatar.jpeg'
 
 const memoryStore = useMemoryStore()
@@ -730,16 +746,81 @@ const loadSystemConfig = async () => {
 const saveSystemConfig = async () => {
   try {
     isSavingConfig.value = true
-    const res = await memoryApi.updateSystemConfig({ ...configForm })
-    if (res.status === 'ok') {
-      ElMessage.success(res.msg || '系统配置保存成功，已即时生效')
-    } else {
-      ElMessage.error(res.msg || '配置保存失败')
-    }
-  } catch (err) {
-    ElMessage.error('保存系统配置失败')
+    await memoryApi.updateSystemConfig({ ...configForm })
+    ElMessage.success('系统配置保存成功，服务已热更新！')
+  } catch (error) {
+    console.error('Save config error:', error)
+    ElMessage.error('系统配置保存失败')
   } finally {
     isSavingConfig.value = false
+  }
+}
+
+// 导入导出功能
+const isExporting = ref(false)
+const isImporting = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const exportMemory = async () => {
+  try {
+    isExporting.value = true
+    const blob = await chatApi.exportMemory()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `memory_export_${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('记忆导出成功！')
+  } catch (error: any) {
+    ElMessage.error(error.message || '导出失败')
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const importMemory = () => {
+  fileInput.value?.click()
+}
+
+const handleFileSelect = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  if (!file.name.endsWith('.json')) {
+    ElMessage.error('请选择 JSON 文件')
+    return
+  }
+
+  const maxSize = 50 * 1024 * 1024
+  if (file.size > maxSize) {
+    ElMessage.error('文件大小超过限制（50MB）')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确认导入记忆文件：${file.name} (${(file.size / 1024).toFixed(2)} KB)？\n\n导入后将重建向量索引，可能需要几分钟。`,
+      '导入记忆',
+      { confirmButtonText: '确认导入', cancelButtonText: '取消', type: 'info' }
+    )
+
+    isImporting.value = true
+    const result = await chatApi.importMemory(file)
+    if (result.status === 'ok') {
+      ElMessage.success(`✅ ${result.msg}`)
+      await memoryStore.loadMemories() // 刷新列表
+    } else {
+      ElMessage.error(result.msg)
+    }
+  } catch (action) {
+    // cancelled or error
+  } finally {
+    isImporting.value = false
+    if (target) target.value = ''
   }
 }
 
@@ -1069,6 +1150,11 @@ onMounted(() => {
 }
 
 /* 3. 记忆管理样式 */
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .memory-table-card {
   .table-search-bar {
     display: flex;
