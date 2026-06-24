@@ -444,3 +444,32 @@ async def get_top_memories(n: int = 5) -> str:
         lines.append(f"- [{title}] {content_preview}｜关键词：{kw_str}")
 
     return "\n".join(lines)
+
+
+async def delete_entry(memory_type: str, key: str) -> bool:
+    """
+    从对应的 .md 文件中删除特定的条目块。
+    """
+    filepath = get_target_file(memory_type, key)
+    if not filepath.exists():
+        return False
+
+    async with _write_lock:
+        existing = await _read_file(filepath)
+        if not existing.strip():
+            return False
+
+        # 用正则定位 <!-- entry: type/key --> 到下一个 entry 或文件末尾
+        pattern = re.compile(
+            r'\n*<!-- entry: ' + re.escape(f"{memory_type}/{key}") + r' -->.*?(?=\n*<!-- entry:|\Z)',
+            re.DOTALL
+        )
+
+        if pattern.search(existing):
+            updated = pattern.sub("", existing)
+            # 清理可能产生的多个连续换行，并确保末尾只有一个换行
+            updated = re.sub(r'\n{3,}', '\n\n', updated)
+            await _write_file(filepath, updated.strip() + "\n")
+            return True
+        return False
+

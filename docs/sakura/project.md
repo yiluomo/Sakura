@@ -42,7 +42,9 @@ src/
 
 | 文件 | 职责 |
 |------|------|
-| `chat.py` | 所有业务接口（对话、记忆、TTS、归档） |
+| `chat.py` | 对话历史拉取与交互接口、消息删除接口 |
+| `memory.py` | 长期记忆增删改查、手动保存、记忆确认、归档、导出与导入接口 |
+| `tts.py` | GPT-SoVITS 语音合成与模型热切换接口 |
 | `deps.py` | FastAPI 依赖注入（`verify_token` Token 认证）|
 | `__init__.py` | 模块初始化 |
 
@@ -50,19 +52,34 @@ src/
 
 **API 接口列表：**
 
+##### 对话接口 (api/chat.py)
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET  | `/api/history` | 获取对话历史（默认最近 50 条）|
-| POST | `/api/chat` | 发送消息，返回回复、情绪、音频 URL |
-| POST | `/api/memory` | 手动保存一条记忆 |
+| POST | `/api/chat` | 发送消息，返回回复、情绪、音频 URL、新生成消息的数据库 ID |
+| DELETE | `/api/chat/message/{id}` | 从 MySQL 数据库和 FAISS 向量库中永久删除某条消息 |
+
+##### 记忆管理接口 (api/memory.py)
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET  | `/api/memory` | 获取全部长期记忆列表（内容未截断） |
+| POST | `/api/memory/create_direct` | 前端管理界面直接手动添加长期记忆，生成唯一 Key，索引至 FAISS |
+| PUT  | `/api/memory/{id}` | 更新长期记忆（更新对应 .md 文件和数据库，更新 FAISS 索引） |
+| DELETE | `/api/memory/{id}` | 彻底删除长期记忆（从数据库、FAISS 以及对应的 .md 文件中删除） |
+| POST | `/api/memory` | 手动保存通用通用记忆 |
 | POST | `/api/memory/confirm` | 用户确认/取消记忆保存 |
 | POST | `/api/memory/archive` | 手动归档最早 N 条短期记忆到长期记忆 |
-| POST | `/api/memory/export` | 导出全部对话记录为 JSON 文件 |
-| POST | `/api/memory/import` | 导入记忆 JSON 文件并可选重建向量索引 |
-| POST | `/api/tts` | 按需生成 TTS 音频（命中缓存直接返回）|
-| POST | `/api/tts/set_refer_audio` | 设置 GPT-SoVITS 参考音频 |
-| POST | `/api/tts/set_gpt_weights` | 热切换 GPT 模型权重 |
-| POST | `/api/tts/set_sovits_weights` | 热切换 SoVITS 模型权重 |
+| POST | `/api/memory/export` | 导出全部对话记录和长期记忆为 JSON 备份文件 |
+| POST | `/api/memory/import` | 导入记忆 JSON 备份文件并重新索引向量库 |
+
+##### TTS 语音合成接口 (api/tts.py)
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/tts` | 按需生成 TTS 音频（已生成则直接命中缓存返回）|
+| POST | `/api/tts/set_refer_audio` | 设置 GPT-SoVITS 参考音频路径 |
+| POST | `/api/tts/set_gpt_weights` | 热切换 GPT 模型权重 (.ckpt) |
+| POST | `/api/tts/set_sovits_weights` | 热切换 SoVITS 模型权重 (.pth) |
+
 
 #### core/ - Core 层
 

@@ -4,9 +4,21 @@
 import asyncio
 import json
 from pathlib import Path
+import sys
+import os
+import io
+
+# 强制设置标准输出为 UTF-8
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# 添加src目录到路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 from memory.short_term import export_memories, import_memories
 from db.database import AsyncSessionLocal
 from db.crud import save_conversation, get_recent_conversations
+
 
 
 async def test_export_import():
@@ -31,6 +43,7 @@ async def test_export_import():
     print("\n2. 导出记忆...")
     export_result = await export_memories(user_id, "test_export.json")
     
+    exported_conv_count = 0
     if export_result["success"]:
         print(f"✅ 导出成功: {export_result['msg']}")
         print(f"   文件路径: {export_result['file_path']}")
@@ -41,6 +54,7 @@ async def test_export_import():
             export_data = json.load(f)
             print(f"   版本: {export_data['version']}")
             print(f"   导出时间: {export_data['export_time']}")
+            exported_conv_count = len(export_data.get('conversations', []))
     else:
         print(f"❌ 导出失败: {export_result['msg']}")
         return
@@ -83,10 +97,10 @@ async def test_export_import():
         restored = await get_recent_conversations(db, user_id, limit=1000)
     
     print(f"   恢复对话数: {len(restored)}")
-    if len(restored) == export_result['count']:
+    if len(restored) == exported_conv_count:
         print("✅ 数据完整恢复")
     else:
-        print(f"⚠️  数据不完整: 期望 {export_result['count']}，实际 {len(restored)}")
+        print(f"⚠️  数据不完整: 期望 {exported_conv_count}，实际 {len(restored)}")
     
     # 7. 清理测试文件
     print("\n6. 清理测试文件...")

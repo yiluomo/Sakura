@@ -6,6 +6,7 @@ export interface EmotionState {
 
 export interface Message {
   id: string
+  dbId?: number               // 数据库记录 ID
   role: 'user' | 'sakura'
   content: string
   timestamp: Date

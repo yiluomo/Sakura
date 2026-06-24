@@ -34,9 +34,18 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const deleteMessage = (id: string) => {
+  const deleteMessage = async (id: string) => {
     const index = messages.value.findIndex(msg => msg.id === id)
     if (index !== -1) {
+      const dbId = messages.value[index].dbId
+      if (dbId) {
+        try {
+          await chatApi.deleteMessage(dbId.toString())
+        } catch (err) {
+          console.error('Failed to delete message from backend:', err)
+          throw err
+        }
+      }
       messages.value.splice(index, 1)
     }
   }
@@ -62,6 +71,11 @@ export const useChatStore = defineStore('chat', () => {
       const response = await chatApi.sendMessage(content)
       console.log('API response:', response.reply)
 
+      // 更新用户消息的 dbId
+      if (response.user_conv_id) {
+        updateMessage(userMessage.id, { dbId: response.user_conv_id })
+      }
+
       // 如果有回复内容，添加助手消息并开始流式输出
       if (response.reply) {
         // 添加助手消息用于流式输出
@@ -74,6 +88,11 @@ export const useChatStore = defineStore('chat', () => {
         })
         assistantMessageId = assistantMessage.id
         console.log('Added assistant message:', assistantMessage.id)
+
+        // 更新助手消息的 dbId
+        if (response.assistant_conv_id) {
+          updateMessage(assistantMessageId, { dbId: response.assistant_conv_id })
+        }
 
         // 开始流式输出
         await streamText(assistantMessageId, response.reply)
@@ -178,6 +197,7 @@ export const useChatStore = defineStore('chat', () => {
         
         return {
           id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+          dbId: msg.id,
           role: msg.role,
           content: msg.content,
           timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),

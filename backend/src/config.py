@@ -50,11 +50,11 @@ if _db_url_env:
     DATABASE_URL = _db_url_env                         # Docker 注入
 else:
     #【个人电脑】
-    DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
+    # DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
 
     #【公司电脑】（当前激活）
-    # _psw = quote_plus("asdag!331@dAaf")
-    # DATABASE_URL = f"mysql+aiomysql://root:{_psw}@localhost:3306/sakura_db"
+    _psw = quote_plus("asdag!331@dAaf")
+    DATABASE_URL = f"mysql+aiomysql://root:{_psw}@localhost:3306/sakura_db"
 
 # LLM API 配置（用于对话总结）
 LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API密钥
@@ -163,3 +163,84 @@ SHORT_TERM_ARCHIVE_COUNT = int(os.environ.get("SHORT_TERM_ARCHIVE_COUNT", "150")
 # 可通过环境变量 API_TOKEN 覆盖（如需临时换 key 时使用）
 # ─────────────────────────────────────────────────────────
 API_TOKEN = os.environ.get("API_TOKEN", "sakura-private-token-a7f3k9z2m1p8q4w6")
+
+# ─────────────────────────────────────────────────────────
+# 图升文与画面识别模型配置（Vision Models）
+# ─────────────────────────────────────────────────────────
+IMAGE_TO_TEXT_MODEL = os.environ.get("IMAGE_TO_TEXT_MODEL", "minicpm-v")
+IMAGE_TO_TEXT_API_KEY = os.environ.get("IMAGE_TO_TEXT_API_KEY", "sk-662cc6ddd16c46369fe799dea0855625")
+IMAGE_TO_TEXT_API_BASE = os.environ.get("IMAGE_TO_TEXT_API_BASE", "https://api.deepseek.com/v1")
+
+SCENE_RECOGNITION_MODEL = os.environ.get("SCENE_RECOGNITION_MODEL", "minicpm-v")
+SCENE_RECOGNITION_API_KEY = os.environ.get("SCENE_RECOGNITION_API_KEY", "sk-662cc6ddd16c46369fe799dea0855625")
+SCENE_RECOGNITION_API_BASE = os.environ.get("SCENE_RECOGNITION_API_BASE", "https://api.deepseek.com/v1")
+# ─────────────────────────────────────────────────────────
+# AI 厂商配置密钥与模块关联选择
+# ─────────────────────────────────────────────────────────
+PROVIDER_DEEPSEEK_KEY = os.environ.get("PROVIDER_DEEPSEEK_KEY", "sk-662cc6ddd16c46369fe799dea0855625")
+PROVIDER_QWEN_KEY = os.environ.get("PROVIDER_QWEN_KEY", "")
+PROVIDER_DOUBAO_KEY = os.environ.get("PROVIDER_DOUBAO_KEY", "")
+PROVIDER_OPENAI_KEY = os.environ.get("PROVIDER_OPENAI_KEY", "")
+PROVIDER_CUSTOM_BASE = os.environ.get("PROVIDER_CUSTOM_BASE", "")
+PROVIDER_CUSTOM_KEY = os.environ.get("PROVIDER_CUSTOM_KEY", "")
+
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "deepseek")
+IMAGE_TO_TEXT_PROVIDER = os.environ.get("IMAGE_TO_TEXT_PROVIDER", "deepseek")
+SCENE_RECOGNITION_PROVIDER = os.environ.get("SCENE_RECOGNITION_PROVIDER", "deepseek")
+EMBEDDING_PROVIDER = os.environ.get("EMBEDDING_PROVIDER", "deepseek")
+
+
+# ─────────────────────────────────────────────────────────
+# 动态配置持久化与加载（支持后台动态修改配置并在运行时生效）
+# ─────────────────────────────────────────────────────────
+import json
+
+SETTINGS_FILE = SAKURA_ROOT / "settings.json"
+
+def load_dynamic_settings():
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # 将数据覆盖到当前模块的全局变量中
+                for key, val in data.items():
+                    globals()[key] = val
+                print(f"[INFO] 成功加载动态配置: {list(data.keys())}")
+        except Exception as e:
+            print(f"[WARNING] 载入动态配置失败: {e}")
+
+# 执行载入
+load_dynamic_settings()
+
+
+def save_dynamic_settings(new_settings: dict) -> bool:
+    """
+    保存配置并在运行时即时更新当前全局状态
+    """
+    try:
+        existing = {}
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+                
+        existing.update(new_settings)
+        
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+            
+        # 同步更新当前模块 of 全局变量
+        for key, val in existing.items():
+            globals()[key] = val
+            
+        # 重新计算实际的 Embedding 维度以保证热更新正确生效
+        globals()["ACTUAL_EMBEDDING_DIMENSION"] = (
+            globals().get("LOCAL_EMBEDDING_DIMENSION", 512)
+            if globals().get("EMBEDDING_MODE", "local") == "local"
+            else globals().get("EMBEDDING_DIMENSION", 1536)
+        )
+            
+        return True
+    except Exception as e:
+        print(f"[ERROR] 动态保存配置失败: {e}")
+        return False
+

@@ -1,3 +1,7 @@
+'sakura backend'
+
+__author__ = 'yiluomu'
+
 import sys
 import io
 from pathlib import Path
@@ -18,6 +22,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from api.chat import router as chat_router
+from api.memory import router as memory_router
+from api.tts import router as tts_router
 from db.database import init_db
 from config import AUDIO_CACHE_DIR
 
@@ -73,8 +79,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册聊天路由
+# 注册路由
 app.include_router(chat_router, prefix="/api")
+app.include_router(memory_router, prefix="/api")
+app.include_router(tts_router, prefix="/api")
 
 # 挂载音频缓存目录（TTS 生成的 MP3 文件通过此路径访问）
 app.mount("/audio", StaticFiles(directory=str(AUDIO_CACHE_DIR)), name="audio")

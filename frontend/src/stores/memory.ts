@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import type { Memory } from '@/types'
+import { memoryApi } from '@/api/memory'
 
 export const useMemoryStore = defineStore('memory', () => {
   const memories = ref<Memory[]>([])
@@ -12,13 +13,7 @@ export const useMemoryStore = defineStore('memory', () => {
       isLoading.value = true
       error.value = null
       
-      const newMemory: Memory = {
-        ...memoryData,
-        id: Date.now().toString(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-      
+      const newMemory = await memoryApi.addMemory(memoryData)
       memories.value.push(newMemory)
     } catch (err) {
       error.value = err instanceof Error ? err.message : '添加记忆失败'
@@ -33,13 +28,10 @@ export const useMemoryStore = defineStore('memory', () => {
       isLoading.value = true
       error.value = null
       
+      const updatedMemory = await memoryApi.updateMemory(id, updates)
       const index = memories.value.findIndex(m => m.id === id)
       if (index !== -1) {
-        memories.value[index] = {
-          ...memories.value[index],
-          ...updates,
-          updatedAt: new Date(),
-        }
+        memories.value[index] = updatedMemory
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新记忆失败'
@@ -54,6 +46,7 @@ export const useMemoryStore = defineStore('memory', () => {
       isLoading.value = true
       error.value = null
       
+      await memoryApi.deleteMemory(id)
       const index = memories.value.findIndex(m => m.id === id)
       if (index !== -1) {
         memories.value.splice(index, 1)
@@ -71,9 +64,7 @@ export const useMemoryStore = defineStore('memory', () => {
       isLoading.value = true
       error.value = null
       
-      // 这里应该调用API加载记忆数据
-      // 暂时使用空数组
-      memories.value = []
+      memories.value = await memoryApi.getMemories()
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载记忆失败'
       throw err
@@ -91,4 +82,4 @@ export const useMemoryStore = defineStore('memory', () => {
     deleteMemory,
     loadMemories,
   }
-})
+})

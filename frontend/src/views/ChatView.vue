@@ -47,6 +47,14 @@
             circle
           />
         </el-tooltip>
+        <!-- 记忆管理按钮 -->
+        <el-tooltip content="记忆管理" placement="bottom">
+          <el-button
+            @click="$router.push('/memory')"
+            :icon="Collection"
+            circle
+          />
+        </el-tooltip>
         <!-- 隐藏的文件输入 -->
         <input
           ref="fileInput"
@@ -111,7 +119,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Sunny, Moon, Files, ChatDotRound, Headset, Mute, Upload, Download } from '@element-plus/icons-vue'
+import { Sunny, Moon, Files, ChatDotRound, Headset, Mute, Upload, Download, Collection } from '@element-plus/icons-vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import ErrorToast from '@/components/common/ErrorToast.vue'

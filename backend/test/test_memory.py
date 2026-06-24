@@ -4,11 +4,17 @@
 import asyncio
 import sys
 import os
+import io
+
+# 强制设置标准输出为 UTF-8
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # 添加src目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from memory.long_term import maybe_save_long_term, _detect_memory_type
+
+from memory.long_term import check_memory_trigger, confirm_save_memory, _detect_memory_type
 
 async def test_detect_memory_type():
     """测试记忆类型检测"""
@@ -50,7 +56,7 @@ async def test_maybe_save_long_term():
     ]
     
     for message, should_trigger, expected_type in test_cases:
-        result = await maybe_save_long_term("test_user", message, "")
+        result = await check_memory_trigger("test_user", message)
         triggered = result is not None
         detected_type = result["memory_type"] if result else None
         status = "✓" if triggered == should_trigger else "✗"
@@ -58,12 +64,25 @@ async def test_maybe_save_long_term():
         if should_trigger:
             type_match = "✓" if detected_type == expected_type else "✗"
             print(f"{status} '{message}' -> 触发: {triggered}, 类型: {detected_type} {type_match}")
+            if triggered:
+                # 确认保存测试
+                confirm_res = await confirm_save_memory("test_user", result)
+                confirm_status = "✓" if confirm_res else "✗"
+                print(f"   {confirm_status} 确认保存: {confirm_res}")
         else:
             print(f"{status} '{message}' -> 触发: {triggered}")
 
 async def main():
     """主测试函数"""
     print("\n开始测试长期记忆功能\n")
+    
+    # 初始化数据库和模型相关以做真实测试
+    from db.database import init_db
+    try:
+        await init_db()
+        print("数据库连接及表创建成功。")
+    except Exception as e:
+        print(f"数据库连接失败: {e}，将使用内存或 Mock 测试。")
     
     # 测试1：记忆类型检测
     await test_detect_memory_type()
@@ -77,3 +96,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

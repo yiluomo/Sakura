@@ -11,6 +11,8 @@ export interface ChatResponse {
   memory_info?: MemoryInfo | null
   audio_url?: string | null      // TTS 生成的音频路径，如 "/audio/xxxx.wav"
   emotion?: EmotionState          // 情绪状态
+  user_conv_id?: number          // 用户消息数据库 ID
+  assistant_conv_id?: number     // 助手消息数据库 ID
 }
 
 export interface MemoryInfo {
@@ -120,6 +122,11 @@ export const chatApi = {
       }
     })
     return response.data as { status: string; msg: string; imported_count: number; skipped_count: number; vector_count: number }
+  },
+
+  deleteMessage: async (messageId: string): Promise<{ status: string; msg: string }> => {
+    const response = await apiClient.delete<{ status: string; msg: string }>(`/chat/message/${messageId}`)
+    return response.data
   },
 
   /**

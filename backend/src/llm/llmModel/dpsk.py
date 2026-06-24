@@ -1,27 +1,25 @@
 import httpx 
-
-DeepSeek_URL = "https://api.deepseek.com/v1/chat/completions"
-MODEL_NAME = "deepseek-chat"
-API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"
-
+import config
 
 async def call_deepseek(prompt:str)->str:
+    url = f"{config.LLM_API_BASE.rstrip('/')}/chat/completions"
+    api_key = config.LLM_API_KEY
+    model = config.LLM_MODEL
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
-            DeepSeek_URL, 
+            url, 
             headers={
-                "Authorization": f"Bearer {API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
             json={
-            "model": MODEL_NAME,
-            # "prompt": prompt,
-            # "stream": False
-            "messages": [
+                "model": model,
+                "messages": [
                     {"role": "user", "content": prompt}
                 ],
-            "temperature": 0.7
-        })
+                "temperature": 0.7
+            }
+        )
         response.raise_for_status()
-        # return response.json()["response"]
-        return response.json()["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"]

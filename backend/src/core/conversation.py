@@ -141,8 +141,11 @@ async def handle_message(user_id: str, message: str) -> Dict[str, Any]:
     return {
         "reply": reply,
         "memory_info": memory_info,
-        "emotion": emotion_state
+        "emotion": emotion_state,
+        "user_conv_id": user_conv_id,
+        "assistant_conv_id": assistant_conv_id
     }
+
 
 
 async def _add_vectors_async(

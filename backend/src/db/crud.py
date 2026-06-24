@@ -169,14 +169,11 @@ async def save_or_update_long_term_memory(
     importance: int = 1,
     emotion_tag: str = "",
     emotional_intensity: int = 0,
-    full_value: bool = False,  # 为 True 时完整保存 value，不截断（用于 archived_conversation）
+    full_value: bool = True,  # 默认为 True，完整保存 value，不截断
 ):
     """
     若记录已存在则更新，否则新建。
     这是写入长期记忆索引的统一入口。
-
-    full_value=True 时不截断 value，用于 archived_conversation 类型
-    保留对话完整原文，以支持向量文件丢失时从 MySQL 恢复。
     """
     stored_value = value if full_value else (value[:100] if value else "")
 
@@ -202,6 +199,37 @@ async def save_or_update_long_term_memory(
         )
         db.add(memory)
         await db.commit()
+
+
+async def delete_long_term_memory(db: AsyncSession, memory_id: int) -> bool:
+    """
+    根据主键 ID 删除长期记忆索引记录
+    """
+    result = await db.execute(
+        select(LongTermMemory).where(LongTermMemory.id == memory_id)
+    )
+    memory = result.scalar_one_or_none()
+    if memory:
+        await db.delete(memory)
+        await db.commit()
+        return True
+    return False
+
+
+async def delete_conversation_by_id(db: AsyncSession, conversation_id: int) -> bool:
+    """
+    根据主键 ID 删除单条对话记录
+    """
+    result = await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id)
+    )
+    conv = result.scalar_one_or_none()
+    if conv:
+        await db.delete(conv)
+        await db.commit()
+        return True
+    return False
+
 
 async def get_long_term_memories(
     db: AsyncSession,

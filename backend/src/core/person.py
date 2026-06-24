@@ -77,6 +77,19 @@ BASE_PERSON = """
 """
 
 
+def get_base_person() -> str:
+    from config import SAKURA_ROOT
+    prompt_file = SAKURA_ROOT / "system_prompt.txt"
+    if prompt_file.exists():
+        try:
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            print(f"[WARNING] 读取自定义提示词失败: {e}")
+    return BASE_PERSON
+
+
 def build_person(user_id: str) -> str:
     # 可扩展：根据亲密度、情绪状态动态调整人格描述
-    return BASE_PERSON
+    return get_base_person()
+

@@ -18,7 +18,7 @@
 2. **创建环境与安装后端依赖**：
    ```bash
    cd backend
-   uv venv --python 3.9
+   uv venv --python 3.14
    .venv\Scripts\activate
    uv pip install -r requirements.txt
    ```

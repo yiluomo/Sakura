@@ -31,7 +31,7 @@ from typing import Optional, Dict
 async def save_memory(user_id: str, content: str):
     """手动保存长期记忆（manual 类型）"""
     memory_type = "manual"
-    key = "user_note"
+    key = f"manual_{int(datetime.now().timestamp())}"
 
     keywords = await extract_keywords(content)
     kw_str = keywords_to_str(keywords)
@@ -86,10 +86,11 @@ async def check_memory_trigger(user_id: str, user_msg: str) -> Optional[Dict]:
                 }
     else:
         # 未检测到具体类型 → 通用手动记忆
+        key = f"manual_{int(datetime.now().timestamp())}"
         return {
             "action":      "create",
             "memory_type": "manual",
-            "key":         "user_note",
+            "key":         key,
             "value":       content,
             "importance":  3,
         }
@@ -218,3 +219,38 @@ async def get_profile(user_id: str) -> str:
     从 .md 文件读取完整内容，按重要度取前5条，格式化为 LLM 友好文本。
     """
     return await file_store.get_top_memories(n=5)
+
+
+async def delete_long_term_memory_full(user_id: str, memory_id: int) -> bool:
+    """
+    完整删除长期记忆：
+    1. 从 MySQL 中查找并删除记录
+    2. 从对应的 .md 文件中删除条目
+    3. 从 FAISS 向量数据库中删除对应的向量
+    """
+    from db.models import LongTermMemory
+    from sqlalchemy import select
+    
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(LongTermMemory).where(LongTermMemory.id == memory_id)
+        )
+        memory = result.scalar_one_or_none()
+        if not memory:
+            return False
+
+        memory_type = memory.memory_type
+        key = memory.key
+
+        # 1. 从数据库中删除
+        await db.delete(memory)
+        await db.commit()
+
+    # 2. 从文件删除条目
+    await file_store.delete_entry(memory_type, key)
+
+    # 3. 从向量库删除
+    from memory.vector_store import delete_conversation_vector
+    delete_conversation_vector(user_id, memory_id)
+
+    return True
