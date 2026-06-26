@@ -412,6 +412,45 @@
 
         <!-- 3. 记忆数据管理页面 -->
         <div v-if="activeMenu === 'memory'" class="page-container page-memory">
+          <!-- 长期记忆触发机制提示 -->
+          <el-card shadow="hover" class="memory-tips-card" style="margin-bottom: 20px;">
+            <template #header>
+              <div class="card-header">
+                <span class="card-header-title">💡 长期记忆触发与保存机制说明</span>
+              </div>
+            </template>
+            <div class="tips-content">
+              <el-row :gutter="20">
+                <el-col :xs="24" :sm="24" :md="8">
+                  <div class="tip-item">
+                    <div class="tip-title">💬 对话主动记录</div>
+                    <div class="tip-desc">
+                      在对话中发送以 <span class="highlight-text">“记住...”</span> 开头的消息可触发记录。
+                      系统会自动检测其分类（如：姓名、爱好、厌恶、生日、年龄、家人、朋友、居住地、职业、经历等），并在聊天界面弹出保存确认框，经你确认后保存为长期记忆。未识别分类时默认为“备忘”。
+                    </div>
+                  </div>
+                </el-col>
+                <el-col :xs="24" :sm="24" :md="8">
+                  <div class="tip-item">
+                    <div class="tip-title">🔄 自动归档机制</div>
+                    <div class="tip-desc">
+                      当数据库中的短期记忆对话条数达到上限 <span class="highlight-text">200 条 (SHORT_TERM_MAX)</span> 时，系统将自动在后台触发归档任务。
+                      将最早的 <span class="highlight-text">150 条 (SHORT_TERM_ARCHIVE_COUNT)</span> 对话进行大模型总结与整合，形成一条“归档对话”类型的长期记忆，并清理这部分短期记忆。
+                    </div>
+                  </div>
+                </el-col>
+                <el-col :xs="24" :sm="24" :md="8">
+                  <div class="tip-item">
+                    <div class="tip-title">⚙️ 后台手动管理</div>
+                    <div class="tip-desc">
+                      你可以在当前页面直接点击 <span class="highlight-text">“添加新记忆”</span> 按钮，手动录入任意长期记忆；也可以对已有的长期记忆进行编辑修改或删除操作，这些操作会直接实时同步更新文件和数据库索引。
+                    </div>
+                  </div>
+                </el-col>
+              </el-row>
+            </div>
+          </el-card>
+
           <el-card shadow="hover" class="memory-table-card">
             <template #header>
               <div class="card-header-between">
@@ -1174,6 +1213,60 @@ onMounted(() => {
 }
 
 /* 3. 记忆管理样式 */
+.memory-tips-card {
+  border-color: #ffd2d8;
+  
+  .tips-content {
+    padding: 5px 0;
+  }
+  
+  .tip-item {
+    background-color: #fff8f9;
+    border: 1px solid #ffe6e8;
+    border-radius: 8px;
+    padding: 15px;
+    height: 100%;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      box-shadow: 0 4px 12px rgba(244, 121, 131, 0.08);
+      transform: translateY(-2px);
+    }
+  }
+  
+  .tip-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f47983;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .tip-desc {
+    font-size: 13px;
+    color: #606266;
+    line-height: 1.6;
+    
+    .highlight-text {
+      color: #e91e63;
+      font-weight: 600;
+      background-color: #fff0f2;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin: 0 2px;
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .memory-tips-card .tip-item {
+    margin-bottom: 15px;
+  }
+}
+
 .header-actions {
   display: flex;
   gap: 10px;
