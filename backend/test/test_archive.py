@@ -84,7 +84,7 @@ async def test_archiving_flow():
         # 找到包含该时间戳或带有最新 key 的记录
         target_memory = None
         for m in lt_memories:
-            if m.key.startswith("archive_"):
+            if m.key.startswith("archive_") and "刘慈欣" in m.value:
                 target_memory = m
                 break
 

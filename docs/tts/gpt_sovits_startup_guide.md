@@ -32,7 +32,7 @@ conda activate gptSOVIT
 ## 第三步：安装 C++ 构建环境（Windows 必须）
 
 > [!IMPORTANT]
-> 此步骤是 **Windows 上必须完成的前置条件**，跳过会导致 `numpy`、`numba`、[av](file:///e:/workspace/yiluomu/tts/v4/%E5%85%AB%E9%87%8D%E6%A8%B1/reference_audios/%E4%B8%AD%E6%96%87/emotions/%E3%80%90%E9%BB%98%E8%AE%A4%E3%80%91%E8%BF%99%E4%B8%AA%E8%BA%AB%E4%BD%93%E4%BC%BC%E4%B9%8E%E4%B8%8D%E4%BC%9A%E8%80%81%E5%8E%BB%EF%BC%8C%E4%BD%86%E6%88%91%E6%83%B3%E8%A7%81%E7%9A%84%E4%BA%BA%EF%BC%8C%E5%8D%B4%E9%83%BD%E7%A6%BB%E5%8E%BB%E4%BA%86%E3%80%82.wav) 等多个包安装失败。
+> 此步骤是 **Windows 上必须完成的前置条件**，跳过会导致 `numpy`、`numba`、av 等多个包安装失败。
 
 ### 安装 Visual Studio Build Tools
 
@@ -75,7 +75,7 @@ pip install torch torchaudio
 ## 第五步：安装依赖
 
 
-在项目根目录创建 [requirements_api.txt](file:///e:/workspace/yiluomu/tts/GPT-SoVITS/requirements_api.txt)（精简版，去掉训练/WebUI/日韩语等不必要依赖）：
+在项目根目录创建 requirements_api.txt（精简版，去掉训练/WebUI/日韩语等不必要依赖）：
 
 ```
 # Core ML
@@ -140,7 +140,7 @@ pip install -r requirements_api.txt
 New-Item -ItemType Directory jieba_fast | Out-Null
 ```
 
-**[jieba_fast/__init__.py](file:///e:/workspace/yiluomu/tts/GPT-SoVITS/jieba_fast/__init__.py)：**
+**jieba_fast/__init__.py：**
 ```python
 from jieba import *
 from jieba import dt, re_han_default, analyse
@@ -156,7 +156,7 @@ set_dictionary = _jieba.set_dictionary
 initialize = _jieba.initialize
 ```
 
-**[jieba_fast/posseg.py](file:///e:/workspace/yiluomu/tts/GPT-SoVITS/jieba_fast/posseg.py)：**
+**jieba_fast/posseg.py：**
 ```python
 from jieba.posseg import *
 from jieba.posseg import cut, lcut, POSTokenizer
@@ -217,7 +217,7 @@ huggingface-cli download lj1995/GPT-SoVITS `
 
 ## 第七步：配置模型路径
 
-修改 [GPT_SoVITS/configs/tts_infer.yaml](file:///e:/workspace/yiluomu/tts/GPT-SoVITS/GPT_SoVITS/configs/tts_infer.yaml)，将 [custom](file:///e:/workspace/yiluomu/tts/GPT-SoVITS/config.py#78-84) 节点改为你的角色模型绝对路径：
+修改 GPT_SoVITS/configs/tts_infer.yaml，将 custom 节点改为你的角色模型绝对路径：
 
 ```yaml
 custom:
@@ -256,7 +256,7 @@ INFO:     Uvicorn running on http://0.0.0.0:9880 (Press CTRL+C to quit)
 ```bat
 @echo off
 call conda activate gptSOVIT
-cd /d e:\workspace\yiluomu\tts\GPT-SoVITS
+cd /d C:\YourPath\tts\GPT-SoVITS
 python api_v2.py -a 0.0.0.0 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml
 pause
 ```

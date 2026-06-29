@@ -318,6 +318,9 @@ async def write_entry(
     Returns:
         实际写入的文件相对路径（用于写入数据库 file_path 字段）
     """
+    if memory_type == "archived_conversation":
+        raise ValueError("已禁用本地保存原始对话功能")
+
     filepath = get_target_file(memory_type, key)
 
     # 构建新的条目文本

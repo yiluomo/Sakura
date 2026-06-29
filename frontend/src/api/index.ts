@@ -1,8 +1,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 
-// ⚠️ 前端仅以桌面/移动应用形式分发，不对外公开部署，Token 可安全硬编码
-// 如需更换 Token，后端同步修改 config.py 中的 API_TOKEN 即可
-const API_TOKEN = 'sakura-private-token-a7f3k9z2m1p8q4w6'
+// 优先从环境变量读取 Token，如果未配置则使用默认 fallback
+const API_TOKEN = import.meta.env.VITE_API_TOKEN || 'sakura-private-token-a7f3k9z2m1p8q4w6'
 
 export interface ApiResponse<T> {
   data: T

@@ -283,23 +283,9 @@ async def _do_archive(user_id: str) -> dict:
     end_ts = conversations[-1]["timestamp"].replace("T", "_").replace(":", "-")[:19]
     key = f"archive_{start_ts}_to_{end_ts}"
 
-    # 7. 写入 .md 文件
+    # 7. 移除本地保存对话功能，直接设为空，不再写入本地 .md 文件
+    file_path = ""
     file_errors = 0
-    try:
-        file_path = await file_store.write_entry(
-            memory_type="archived_conversation",
-            key=key,
-            content=combined_content,
-            keywords=keywords,
-            importance=3,
-            role="session",
-            emotion_type="calm",
-            timestamp=f"{conversations[0]['timestamp']} 至 {conversations[-1]['timestamp']}",
-        )
-    except Exception as e:
-        print(f"⚠️  [archive] 文件写入失败 key={key}: {e}")
-        file_path = ""
-        file_errors = 1
 
     # 8. 准备写入数据库的聚合条目
     db_records = [{

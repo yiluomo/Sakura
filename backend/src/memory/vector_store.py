@@ -53,8 +53,8 @@ _local_model = None
 
 # OpenAI 客户端（用于生成 embedding）
 openai_client = AsyncOpenAI(
-    api_key=EMBEDDING_API_KEY,
-    base_url=EMBEDDING_API_BASE,
+    api_key=EMBEDDING_API_KEY or "placeholder",
+    base_url=EMBEDDING_API_BASE or "https://api.openai.com/v1",
 )
 
 # 异步后台任务所需参数

@@ -100,3 +100,9 @@ audio_cache/
 qdrant/
 qdrant_storage/
 qdrant-tools/
+
+# 动态配置文件
+settings.json
+
+#文档
+docs/*

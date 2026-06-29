@@ -3,13 +3,35 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 # src/ 目录
-SRC_ROOT = Path(__file__).parent
+SRC_ROOT = Path(__file__).resolve().parent
 
 # Sakura/ 根目录（src/ → backend/ → Sakura/）
-SAKURA_ROOT = Path(__file__).parent.parent.parent
+SAKURA_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # 兼容旧引用
 PROJECT_ROOT = SRC_ROOT
+
+# ─────────────────────────────────────────────────────────
+# 加载本地 .env 文件（如果存在）到环境变量
+# ─────────────────────────────────────────────────────────
+_env_path = SAKURA_ROOT / ".env"
+if _env_path.exists():
+    try:
+        with open(_env_path, "r", encoding="utf-8") as f:
+            for _line in f:
+                _line = _line.strip()
+                if not _line or _line.startswith("#"):
+                    continue
+                if "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    _k = _k.strip()
+                    _v = _v.strip()
+                    if (_v.startswith('"') and _v.endswith('"')) or (_v.startswith("'") and _v.endswith("'")):
+                        _v = _v[1:-1]
+                    # 如果系统环境变量中已设定，则不覆盖，实现优先级控制
+                    os.environ.setdefault(_k, _v)
+    except Exception as e:
+        print(f"[WARNING] 载入 .env 配置文件失败: {e}")
 
 # db 相关目录
 DB_DIR = SRC_ROOT / "db"
@@ -42,24 +64,18 @@ VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─────────────────────────────────────────────────────────
 # 数据库配置
-# 优先读取环境变量 DATABASE_URL（Docker / CI 时注入）
-# 未设置则使用本地硬编码配置
+# 优先读取环境变量 DATABASE_URL（可由 .env 或 Docker 注入）
+# 未设置则使用默认开发环境数据库地址
 # ─────────────────────────────────────────────────────────
-_db_url_env = os.environ.get("DATABASE_URL")
-if _db_url_env:
-    DATABASE_URL = _db_url_env                         # Docker 注入
-else:
-    #【个人电脑】
-    # DATABASE_URL = "mysql+aiomysql://root:YaeSakura@localhost:3306/sakura_db"
-
-    #【公司电脑】（当前激活）
-    _psw = quote_plus("asdag!331@dAaf")
-    DATABASE_URL = f"mysql+aiomysql://root:{_psw}@localhost:3306/sakura_db"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "mysql+aiomysql://root:password@localhost:3306/sakura_db"
+)
 
 # LLM API 配置（用于对话总结）
-LLM_API_KEY = "sk-662cc6ddd16c46369fe799dea0855625"  # 请替换为实际的API密钥
-LLM_API_BASE = "https://api.deepseek.com/v1"  # 或其他兼容的API地址
-LLM_MODEL = "deepseek-chat"  # 用于总结的模型
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")  # 请通过 .env 或环境变量配置
+LLM_API_BASE = os.environ.get("LLM_API_BASE", "https://api.deepseek.com/v1")  # 或其他兼容的API地址
+LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")  # 用于总结的模型
 
 # 记忆导出/导入配置（用于备份和迁移）
 MEMORY_EXPORT_DIR = SAKURA_ROOT / "memory_exports"  # 导出文件存储目录
@@ -85,10 +101,8 @@ TTS_ENGINE = os.environ.get("TTS_ENGINE", "gpt_sovits")
 GPT_SOVITS_BASE_URL     = os.environ.get("GPT_SOVITS_BASE_URL",     "http://127.0.0.1:9880")
 
 # 参考音频（服务器端绝对路径）及对应台词与语言
-GPT_SOVITS_REF_AUDIO_PATH = os.environ.get(
-    "GPT_SOVITS_REF_AUDIO_PATH",
-    r"e:/workspace/yiluomu/tts/v4/八重樱/reference_audios/中文/emotions/【默认】这个身体似乎不会老去，但我想见的人，却都离去了。.wav",
-)
+# 部署使用时，需在环境变量或 .env 中指定真实的绝对路径
+GPT_SOVITS_REF_AUDIO_PATH = os.environ.get("GPT_SOVITS_REF_AUDIO_PATH", "")
 GPT_SOVITS_PROMPT_TEXT  = os.environ.get("GPT_SOVITS_PROMPT_TEXT",  "这个身体似乎不会老去，但我想见的人，却都离去了。")   # 参考音频对应台词
 GPT_SOVITS_PROMPT_LANG  = os.environ.get("GPT_SOVITS_PROMPT_LANG",  "zh")  # 参考音频语言
 GPT_SOVITS_TEXT_LANG    = os.environ.get("GPT_SOVITS_TEXT_LANG",    "zh")  # 合成文本语言
@@ -168,16 +182,16 @@ API_TOKEN = os.environ.get("API_TOKEN", "sakura-private-token-a7f3k9z2m1p8q4w6")
 # 图升文与画面识别模型配置（Vision Models）
 # ─────────────────────────────────────────────────────────
 IMAGE_TO_TEXT_MODEL = os.environ.get("IMAGE_TO_TEXT_MODEL", "minicpm-v")
-IMAGE_TO_TEXT_API_KEY = os.environ.get("IMAGE_TO_TEXT_API_KEY", "sk-662cc6ddd16c46369fe799dea0855625")
+IMAGE_TO_TEXT_API_KEY = os.environ.get("IMAGE_TO_TEXT_API_KEY", "")
 IMAGE_TO_TEXT_API_BASE = os.environ.get("IMAGE_TO_TEXT_API_BASE", "https://api.deepseek.com/v1")
 
 SCENE_RECOGNITION_MODEL = os.environ.get("SCENE_RECOGNITION_MODEL", "minicpm-v")
-SCENE_RECOGNITION_API_KEY = os.environ.get("SCENE_RECOGNITION_API_KEY", "sk-662cc6ddd16c46369fe799dea0855625")
+SCENE_RECOGNITION_API_KEY = os.environ.get("SCENE_RECOGNITION_API_KEY", "")
 SCENE_RECOGNITION_API_BASE = os.environ.get("SCENE_RECOGNITION_API_BASE", "https://api.deepseek.com/v1")
 # ─────────────────────────────────────────────────────────
 # AI 厂商配置密钥与模块关联选择
 # ─────────────────────────────────────────────────────────
-PROVIDER_DEEPSEEK_KEY = os.environ.get("PROVIDER_DEEPSEEK_KEY", "sk-662cc6ddd16c46369fe799dea0855625")
+PROVIDER_DEEPSEEK_KEY = os.environ.get("PROVIDER_DEEPSEEK_KEY", "")
 PROVIDER_QWEN_KEY = os.environ.get("PROVIDER_QWEN_KEY", "")
 PROVIDER_DOUBAO_KEY = os.environ.get("PROVIDER_DOUBAO_KEY", "")
 PROVIDER_OPENAI_KEY = os.environ.get("PROVIDER_OPENAI_KEY", "")
