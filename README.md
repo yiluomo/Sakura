@@ -166,12 +166,9 @@ curl -X POST http://localhost:8000/api/chat \
 
 **1. Electron 下载慢 / 失败？**
 
-仓库中的 `frontend/.npmrc` 已内置国内镜像（提交到仓库后新用户自动生效）。若还没有该文件，可手动创建：
+国内镜像已内置：一键脚本会自动设置 `ELECTRON_MIRROR` 环境变量，仓库中的 `frontend/.npmrc` 也配置了 `electron_mirror`（提交到仓库后对直接执行 `npm install` 的用户生效）。若两者都没有，可手动执行：
 
 ```powershell
-# frontend/.npmrc
-electron_mirror=https://npmmirror.com/mirrors/electron/
-# 或临时指定环境变量
 $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; npm install
 ```
 

@@ -29,7 +29,7 @@ param(
     [switch]$CleanLogs
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 $Root        = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir  = Join-Path $Root "backend"
@@ -49,6 +49,12 @@ function Write-Fail  { Write-Host "    FAIL: $args" -ForegroundColor Red }
 function Test-PortListener([int]$Port) {
     try { return [bool](Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) }
     catch { return $false }
+}
+
+function Test-PythonImport([string]$Module) {
+    # 捕获 stderr（PS 5.1 会把原生命令 stderr 当作错误），只依据退出码判断
+    $null = & $VenvPython -c "import $Module" 2>&1
+    return ($LASTEXITCODE -eq 0)
 }
 
 function Get-DbMode {
@@ -184,11 +190,11 @@ if ($dbMode -eq "unknown") {
 
 if (-not $SkipInstall) {
     # 检测对应驱动是否已安装；缺失时自动补装（首次安装可能耗时较长）
-    $probeModule = if ($dbMode -eq "sqlite") { "aiosqlite" } else { "aiomysql" }
+    $probeModule = "aiosqlite"
+    if ($dbMode -ne "sqlite") { $probeModule = "aiomysql" }
     $needInstall = $InstallDeps
     if (-not $needInstall) {
-        $null = & $VenvPython -c "import $probeModule" 2>$null
-        $needInstall = ($LASTEXITCODE -ne 0)
+        $needInstall = -not (Test-PythonImport $probeModule)
     }
     if ($needInstall) {
         Write-Ok "Installing backend dependencies (uv sync --extra $dbMode, first run may take several minutes)..."
@@ -209,6 +215,10 @@ if (-not $SkipInstall) {
 
 # ---- frontend deps ---------------------------------------------------
 Write-Step "Checking frontend dependencies..."
+# Electron 镜像：优先用环境变量（.npmrc 的 electron_mirror 键在新版 npm 会废弃）
+if (-not $env:ELECTRON_MIRROR) {
+    $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+}
 if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
     if ($SkipInstall) {
         Write-Fail "frontend/node_modules is missing and install was skipped."
@@ -216,7 +226,7 @@ if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
     }
     Write-Ok "Running npm install (first run, may take a while)..."
     Push-Location $FrontendDir
-    & npm.cmd install
+    & npm.cmd install 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
     Pop-Location
     if ($code -ne 0) {
@@ -284,10 +294,10 @@ Write-Step "Starting frontend ($Mode mode, logs -> $frontLog)..."
 Push-Location $FrontendDir
 if ($Mode -eq "Desktop") {
     Write-Ok "Desktop app mode (Electron). Backend logs are under $LogDir"
-    & npm.cmd run electron:dev 2>&1 | Tee-Object -FilePath $frontLog
+    & npm.cmd run electron:dev 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $frontLog
 } else {
     Write-Ok "Browser mode - open http://localhost:$WebPort"
-    & npm.cmd run dev 2>&1 | Tee-Object -FilePath $frontLog
+    & npm.cmd run dev 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $frontLog
 }
 $frontendCode = $LASTEXITCODE
 Pop-Location
