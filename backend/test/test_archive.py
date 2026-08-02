@@ -4,12 +4,8 @@
 import asyncio
 import sys
 import os
-import io
+import pytest
 from datetime import datetime, timedelta
-
-# 强制设置标准输出为 UTF-8
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # 添加src目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -20,6 +16,7 @@ from api.memory import _do_archive
 from memory import file_store
 from sqlalchemy import select, delete
 
+@pytest.mark.llm
 async def test_archiving_flow():
     print("=" * 50)
     print("开始测试记忆系统聚合归档功能")

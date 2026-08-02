@@ -4,7 +4,10 @@
 import asyncio
 import sys
 import os
+import pytest
 from datetime import datetime
+
+pytestmark = pytest.mark.slow
 
 # 添加src目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))

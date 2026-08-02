@@ -103,6 +103,16 @@ qdrant-tools/
 
 # 动态配置文件
 settings.json
+system_prompt.txt
+
+# 启动日志（start.ps1 生成）
+.logs/
+
+# TypeScript 编译缓存
+*.tsbuildinfo
+
+# SQLite 数据目录（含 -wal / -shm 附属文件）
+backend/src/db/data/
 
 #文档
 docs/*

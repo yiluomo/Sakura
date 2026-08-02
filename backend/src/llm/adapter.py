@@ -1,5 +1,4 @@
 from llm.llmModel.dpsk import call_deepseek
-from llm.llmModel.ollama import call_ollama
 
 import traceback
 

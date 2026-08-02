@@ -6,6 +6,7 @@
 import asyncio
 from sqlalchemy import text
 from db.database import AsyncSessionLocal
+from config import DB_IS_SQLITE
 
 
 async def test_long_term_memory_query():
@@ -48,8 +49,12 @@ async def test_vector_id_field():
     async with AsyncSessionLocal() as db:
         try:
             # 检查字段是否存在
-            result = await db.execute(text("DESCRIBE long_term_memory"))
-            columns = {row[0] for row in result.fetchall()}
+            if DB_IS_SQLITE:
+                result = await db.execute(text("PRAGMA table_info(long_term_memory)"))
+                columns = {row[1] for row in result.fetchall()}
+            else:
+                result = await db.execute(text("DESCRIBE long_term_memory"))
+                columns = {row[0] for row in result.fetchall()}
             
             if "vector_id" in columns:
                 print("✅ vector_id 字段已存在")

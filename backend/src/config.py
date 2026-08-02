@@ -64,13 +64,18 @@ VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─────────────────────────────────────────────────────────
 # 数据库配置
-# 优先读取环境变量 DATABASE_URL（可由 .env 或 Docker 注入）
-# 未设置则使用默认开发环境数据库地址
+# 优先读取环境变量 DATABASE_URL（可由 .env 或 Docker 注入）。
+# 未设置时默认使用 SQLite（零配置，适合体验/开发）。
+# 正式使用请切换到 MySQL，例如：
+#   DATABASE_URL=mysql+aiomysql://root:password@localhost:3306/sakura_db
+# 注意：SQLite 与 MySQL 的驱动是互斥的可选依赖，详见 backend/pyproject.toml。
 # ─────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "mysql+aiomysql://root:password@localhost:3306/sakura_db"
-)
+DEFAULT_SQLITE_URL = "sqlite+aiosqlite:///" + (DATA_DIR / "sakura.db").as_posix()
+DATABASE_URL = os.environ.get("DATABASE_URL", DEFAULT_SQLITE_URL)
+
+# 方言标识（供初始化脚本等做分支处理）
+DB_IS_SQLITE = DATABASE_URL.startswith("sqlite")
+DB_IS_MYSQL = DATABASE_URL.startswith("mysql")
 
 # LLM API 配置（用于对话总结）
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")  # 请通过 .env 或环境变量配置

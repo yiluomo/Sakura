@@ -1,14 +1,17 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from contextlib import asynccontextmanager
-from config import DATABASE_URL
+from config import DATABASE_URL, DB_IS_SQLITE
 from db.models import Base
+
+# SQLite 不适用连接池参数（MySQL 使用连接池）
+_engine_kwargs = {"echo": False}
+if not DB_IS_SQLITE:
+    _engine_kwargs.update(pool_size=5, max_overflow=10)
 
 # 创建异步引擎
 engine = create_async_engine(
     DATABASE_URL,
-    echo=False,  # 设为 True 可以看到 SQL 日志
-    pool_size=5,
-    max_overflow=10
+    **_engine_kwargs
 )
 
 # 创建会话工厂

@@ -1,3 +1,5 @@
+from config import SAKURA_ROOT
+
 # BASE_PERSON = """
 # # 角色定义
 # **姓名**： 八重樱
@@ -77,12 +79,13 @@ BASE_PERSON = """
 """
 
 
+PROMPT_FILE = SAKURA_ROOT / "system_prompt.txt"
+
+
 def get_base_person() -> str:
-    from config import SAKURA_ROOT
-    prompt_file = SAKURA_ROOT / "system_prompt.txt"
-    if prompt_file.exists():
+    if PROMPT_FILE.exists():
         try:
-            with open(prompt_file, "r", encoding="utf-8") as f:
+            with open(PROMPT_FILE, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             print(f"[WARNING] 读取自定义提示词失败: {e}")

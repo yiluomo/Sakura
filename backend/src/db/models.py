@@ -44,8 +44,8 @@ class LongTermMemory(Base):
 
     __table_args__ = (
         Index('idx_type_key',    'memory_type', 'key'),         # 去重 / 精确查找
-        Index('idx_importance',  'importance'),                  # 按重要度排序
-        Index('idx_vector_id',   'vector_id'),                   # 向量关联查询
+        Index('idx_ltm_importance', 'importance'),               # 按重要度排序
+        Index('idx_ltm_vector_id',  'vector_id'),                # 向量关联查询
     )
 
 class UserState(Base):

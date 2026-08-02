@@ -1,7 +1,46 @@
 [project]
-name = "backend"
+name = "sakura-backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "Sakura - 对话生命系统后端"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "httpx",
+    "sqlalchemy>=2.0",
+    "pydantic>=2.0",
+    "aiofiles",
+    "openai>=1.0.0",
+    "numpy",
+    "packaging",
+    "faiss-cpu",
+    "sentence-transformers",
+    "torch",
+]
+
+# 数据库驱动按模式二选一：
+#   SQLite 模式 -> uv sync --extra sqlite
+#   MySQL 模式  -> uv sync --extra mysql
+# 两个模式互斥，不会安装对方的驱动。
+[project.optional-dependencies]
+sqlite = ["aiosqlite"]
+mysql = ["aiomysql", "pymysql", "cryptography"]
+
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio"]
+
+[tool.uv]
+# 后端以 src/ 作为运行目录（uvicorn "main:app"），不作为安装包处理
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-m 'not slow and not llm'"
+markers = [
+    "slow: 需要加载本地模型/向量的重量级测试（默认跳过）",
+    "llm: 会调用外部 LLM API 的测试（默认跳过）",
+]
